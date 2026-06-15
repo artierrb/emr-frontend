@@ -58,6 +58,7 @@
   <ProgramConfigModal v-model="showConfig" />
   <DetailMasterModal v-model="showMaster" />
   <UserManagementModal v-model="showUsers" />
+  <FormManagementModal v-model="showForms" />
 </template>
 
 <script setup lang="ts">
@@ -67,6 +68,7 @@ import { useAuthStore } from '@/stores/auth'
 import ProgramConfigModal from './ProgramConfigModal.vue'
 import DetailMasterModal from './DetailMasterModal.vue'
 import UserManagementModal from './UserManagementModal.vue'
+import FormManagementModal from './FormManagementModal.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -74,13 +76,15 @@ const authStore = useAuthStore()
 const open = ref(false)
 const showConfig = ref(false)
 const showMaster = ref(false)
-const showUsers = ref(false)
+const showUsers  = ref(false)
+const showForms  = ref(false)
 const panelRef = ref<HTMLElement>()
 
 const adminMenus = [
-  { key: 'users',  icon: 'bi-people',  label: 'User Management' },
-  { key: 'config', icon: 'bi-gear',    label: 'Program Configuration' },
-  { key: 'master', icon: 'bi-table',   label: 'Detail Master' },
+  { key: 'users',  icon: 'bi-people',            label: 'User Management'     },
+  { key: 'forms',  icon: 'bi-file-earmark-text', label: 'Form Management'     },
+  { key: 'config', icon: 'bi-gear',              label: 'Program Configuration'},
+  { key: 'master', icon: 'bi-table',             label: 'Detail Master'        },
 ]
 
 function goLogin() { router.push('/login') }
@@ -90,6 +94,7 @@ function onSelect(key: string) {
   if (key === 'users')  showUsers.value  = true
   if (key === 'config') showConfig.value = true
   if (key === 'master') showMaster.value = true
+  if (key === 'forms')  showForms.value  = true
 }
 
 function logout() {

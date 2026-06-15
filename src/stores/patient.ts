@@ -10,6 +10,30 @@ export const usePatientStore = defineStore('patient', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
+  // ─── Viewer shared state ───────────────────────────────────
+  const viewerPatient  = ref<Patient | null>(null)
+  const viewerOcmNum   = ref('')
+  const viewerTreatNo  = ref<number | null>(null)
+  const viewerLastHn   = ref('')
+  const viewerNotFound = ref(false)
+
+  function setViewerTreat(patient: Patient, treat: any) {
+    viewerPatient.value  = patient
+    viewerOcmNum.value   = (treat.ocmNum || treat.vstNum || treat.admNum || '').trim()
+    viewerTreatNo.value  = treat.treatNo ?? null
+    viewerLastHn.value   = patient.PATID.trim()
+    viewerNotFound.value = false
+  }
+
+  function clearViewer() {
+    viewerPatient.value  = null
+    viewerOcmNum.value   = ''
+    viewerTreatNo.value  = null
+    viewerLastHn.value   = ''
+    viewerNotFound.value = false
+  }
+  // ──────────────────────────────────────────────────────────
+
   const patientAge = computed(() => {
     if (!selectedPatient.value?.BIRTHDATE) return '-'
     const year = parseInt(selectedPatient.value.BIRTHDATE.substring(0, 4))
@@ -39,7 +63,9 @@ export const usePatientStore = defineStore('patient', () => {
 
   async function findByHn(hn: string): Promise<Patient | null> {
     try {
-      const results = await patientApi.search('PATID', hn)
+      // sync HIS เฉพาะ HN นี้ก่อน (exec SP 2 ตัว) แล้วค่อยหาคนไข้
+      // ส่ง hn เข้าไปแบบเต็ม (padded) ไม่ trim เพราะ SP ต้องการ HN padded 8 หลัก
+      const results = await patientApi.syncFind(hn)
       return results.find(p => p.PATID.trim() === hn.trim()) ?? null
     } catch {
       return null
@@ -61,5 +87,8 @@ export const usePatientStore = defineStore('patient', () => {
   return {
     hnConfig, selectedPatient, searchResults, loading, error, patientAge,
     loadHnConfig, searchPatient, findByHn, selectPatient, clearPatient, clearSearch,
+    // viewer shared
+    viewerPatient, viewerOcmNum, viewerTreatNo, viewerLastHn, viewerNotFound,
+    setViewerTreat, clearViewer,
   }
 })

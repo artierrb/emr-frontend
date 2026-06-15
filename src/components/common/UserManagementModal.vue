@@ -141,8 +141,10 @@ import api from '@/services/api'
 import { useDialog } from '@/composables/useDialog'
 const { alert: dlgAlert, confirm: dlgConfirm } = useDialog()
 
-defineProps<{ modelValue: boolean }>()
+const props = defineProps<{ modelValue: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
+
+watch(() => props.modelValue, v => { if (v) load() })
 
 const users = ref<any[]>([])
 const selected = ref<any>(null)

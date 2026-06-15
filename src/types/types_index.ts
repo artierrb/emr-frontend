@@ -11,7 +11,7 @@ export interface Form {
   formCode: string
   name: string
   grpMid: string
-  grpCode?: string      // group code — ใช้ใน ScanView สำหรับจัด tree (backend ส่งมาแต่เดิมไม่ได้ประกาศ)
+  grpCode: string
   active: string
   ocrYn: string
   pageCount: number
@@ -76,22 +76,7 @@ export interface HnConfig {
   hnSep: 'Y' | 'N'
 }
 
-// ── Clinic (filter dropdown ใน OCR Return) ──
-// template ใช้ c.CLINCODE และ c.NAME
-export interface Clinic {
-  CLINCODE: string
-  NAME: string
-}
-
-// ── FormGroup (group header ใน ScanView + OCR Return) ──
-// ใช้ g.GRPCODE และ g.NAME
-export interface FormGroup {
-  GRPCODE: string
-  NAME: string
-}
-
-// ── OcrReturnRow (ตารางผลลัพธ์ใน OCR Return) ──
-// field มาจาก SQL column ตรงๆ (ตัวพิมพ์ใหญ่)
+// ─── OCR Return ─────────────────────────────────────────────
 export interface OcrReturnRow {
   PATID: string
   NAME: string
@@ -102,7 +87,17 @@ export interface OcrReturnRow {
   SCANYN: string
   OCRPK: string
   FORMNAME: string
-  PAGECOUNT: number
+  PAGECOUNT: string
   CLASS: string
   BIGO: string
+}
+
+export interface Clinic {
+  CLINCODE: string
+  NAME: string
+}
+
+export interface FormGroup {
+  GRPCODE: string
+  NAME: string
 }

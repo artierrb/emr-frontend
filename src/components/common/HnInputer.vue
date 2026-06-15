@@ -79,7 +79,9 @@ function onEnter() {
     yearValue.value = mainValue.value.substring(0, 2)
     mainValue.value = mainValue.value.substring(2)
   }
-  emit('search', hnValue.value.trim())
+  // ส่ง HN แบบ padded 8 หลักเต็ม (ห้าม trim) — backend/SP ต้องการ padding เพื่อ match record
+  // เช่น '69     1' (แยกปี) หรือ '     123' (ไม่แยกปี)
+  emit('search', hnValue.value)
 }
 
 function clear() {

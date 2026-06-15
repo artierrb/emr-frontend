@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Patient, Form, Treatment, ChartPage, ScanUploadResult, HnConfig } from '@/types'
+import type { Patient, Form, Treatment, ChartPage, ScanUploadResult, HnConfig, OcrReturnRow, Clinic, FormGroup } from '@/types'
 
 const api = axios.create({
   baseURL: '/api',
@@ -9,10 +9,15 @@ const api = axios.create({
 // ─── Patient ──────────────────────────────────────────────────
 export const patientApi = {
   getHnConfig: () =>
-    api.get<HnConfig>('/patient/config').then(r => r.data),
+      api.get<HnConfig>('/patient/config').then(r => r.data),
 
   search: (field: string, keyword: string) =>
-    api.get<Patient[]>('/patient/search', { params: { field, keyword } }).then(r => r.data),
+      api.get<Patient[]>('/patient/search', { params: { field, keyword } }).then(r => r.data),
+
+  // sync HIS เฉพาะ HN เดียว (exec SP_InterfaceTREATT_PATID + SP_InterfacePATIENTT_PATID) แล้วหาคนไข้
+  // ใช้ตอนพิมพ์ HN ในหน้า Scan/View — hn ต้องเป็น padded 8 หลัก (ห้าม trim ก่อนส่ง)
+  syncFind: (hn: string) =>
+      api.get<Patient[]>('/patient/sync-find', { params: { hn } }).then(r => r.data),
 
   insert: (data: {
     patId: string; name: string; sex: string
@@ -23,65 +28,88 @@ export const patientApi = {
 // ─── Forms ────────────────────────────────────────────────────
 export const formApi = {
   getAll: () =>
-    api.get<Form[]>('/forms').then(r => r.data),
+      api.get<Form[]>('/forms').then(r => r.data),
+
+  getGroups: () =>
+      api.get<FormGroup[]>('/forms/groups').then(r => r.data),
 }
 
 // ─── Config ───────────────────────────────────────────────────
 export const configApi = {
   getPrgMode: () =>
-    api.get<{ prgMode: string }>('/config/prgmode').then(r => r.data.prgMode),
+      api.get<{ prgMode: string }>('/config/prgmode').then(r => r.data.prgMode),
 }
 
 // ─── Clinic / User search ────────────────────────────────────
 export const clinicApi = {
   search: (keyword: string) =>
-    api.get('/clinic/search', { params: { keyword } }).then(r => r.data),
+      api.get('/clinic/search', { params: { keyword } }).then(r => r.data),
 }
 
 export const userApi = {
   search: (keyword: string) =>
-    api.get('/user/search', { params: { keyword } }).then(r => r.data),
+      api.get('/user/search', { params: { keyword } }).then(r => r.data),
 }
 
 // ─── Treatments full ─────────────────────────────────────────
 export const treatApi = {
   getFull: (hn: string) =>
-    api.get('/treatments/full', { params: { hn } }).then(r => r.data),
+      api.get('/treatments/full', { params: { hn } }).then(r => r.data),
 
   insert: (data: Record<string, string>) =>
-    api.post('/treatments/insert', data).then(r => r.data),
+      api.post('/treatments/insert', data).then(r => r.data),
 
   delete: (treatNo: number) =>
-    api.delete(`/treatments/${treatNo}`).then(r => r.data),
+      api.delete(`/treatments/${treatNo}`).then(r => r.data),
 
   updateCheck: (treatNo: number, checkNo: number, value: string, userId = 'DEMO') =>
-    api.post('/treatments/check', { treatNo: String(treatNo), checkNo: String(checkNo), value, userId }).then(r => r.data),
+      api.post('/treatments/check', { treatNo: String(treatNo), checkNo: String(checkNo), value, userId }).then(r => r.data),
 
   getFormCount: (treatNo: number) =>
-    api.get('/treatments/formcount', { params: { treatNo } }).then(r => r.data),
+      api.get('/treatments/formcount', { params: { treatNo } }).then(r => r.data),
 }
 
 // ─── Scan ─────────────────────────────────────────────────────
 export const scanApi = {
   upload: (formData: FormData) =>
-    api.post<ScanUploadResult>('/scan/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }).then(r => r.data),
+      api.post<ScanUploadResult>('/scan/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }).then(r => r.data),
 }
 
 // ─── Viewer ───────────────────────────────────────────────────
 export const viewerApi = {
   getTreatments: (hn: string) =>
-    api.get<Treatment[]>('/treatments', { params: { hn } }).then(r => r.data),
+      api.get<Treatment[]>('/treatments', { params: { hn } }).then(r => r.data),
 
   getChartPages: (treatNo: number) =>
-    api.get<ChartPage[]>(`/chartpages/${treatNo}`).then(r => r.data),
+      api.get<ChartPage[]>(`/chartpages/${treatNo}`).then(r => r.data),
 
   getImageUrl: (pageNo: number, ext: string) =>
-    `/api/image/${pageNo}?ext=${ext}`,
+      `/api/image/${pageNo}?ext=${ext}`,
 
   movePages: (pageNos: number[], newFormCode: string) =>
-    api.post('/chartpages/move', { pageNos, newFormCode }).then(r => r.data),
+      api.post('/chartpages/move', { pageNos, newFormCode }).then(r => r.data),
+}
+
+// ─── OCR Return ─────────────────────────────────────────────────
+export const ocrReturnApi = {
+  getClinics: () =>
+      api.get<Clinic[]>('/ocrreturn/clinics').then(r => r.data),
+
+  search: (params: {
+    startDate: string
+    endDate: string
+    clinCode?: string
+    scanYn?: string
+    grpCode?: string
+    hn?: string
+    ocrPk?: string
+  }) =>
+      api.get<OcrReturnRow[]>('/ocrreturn/list', { params }).then(r => r.data),
+
+  saveMemo: (ocrPk: string, bigo: string) =>
+      api.post('/ocrreturn/memo', { ocrPk, bigo }).then(r => r.data),
 }
 
 export default api

@@ -9,7 +9,6 @@
     <!-- TabTyp dropdown -->
     <div class="mb-3">
       <select v-model="selectedTyp" class="form-select max-w-xs" @change="onTypChange">
-        <option value="">-- เลือกประเภท --</option>
         <option v-for="t in tabTypList" :key="t.DtlCod" :value="t.DtlCod?.trim()">
           {{ t.DtlCodNam || t.DtlCod }}
         </option>
@@ -33,7 +32,7 @@
             <thead><tr><th>Code</th><th>Name</th></tr></thead>
             <tbody>
               <tr v-if="tabList.length === 0">
-                <td colspan="2" class="text-center py-3 text-gray-400 text-xs">เลือกประเภทด้านบน</td>
+                <td colspan="2" class="text-center py-3 text-gray-400 text-xs">ไม่พบข้อมูล</td>
               </tr>
               <tr
                 v-for="t in tabList" :key="t.TabCod"
@@ -234,6 +233,10 @@ watch(() => props.modelValue, v => { if (v) loadTabTyp() })
 async function loadTabTyp() {
   const res = await api.get('/master/tabtyp')
   tabTypList.value = res.data
+  if (tabTypList.value.length > 0) {
+    selectedTyp.value = tabTypList.value[0].DtlCod?.trim()
+    await onTypChange()
+  }
 }
 
 async function onTypChange() {

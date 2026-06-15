@@ -110,35 +110,58 @@
           <p class="text-xs font-semibold text-gray-500">
             ประเภทฟอร์ม <span class="text-red-500">*</span>
           </p>
-          <!-- badge cnt ของ treatno ที่เลือก -->
           <span v-if="scanStore.selectedTreatNo && selectedFormCnt !== null"
             class="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
             {{ selectedFormCnt }}
           </span>
         </div>
+        <!-- Search bar -->
+        <div class="flex gap-1 mb-1 flex-shrink-0">
+          <select v-model="formSearchField" class="form-select text-xs py-0.5" style="width:77px;flex-shrink:0;">
+            <option value="group">Group</option>
+            <option value="form">Form</option>
+          </select>
+          <input v-model="formSearchKw" type="text" class="form-input text-xs py-0.5" style="flex:1;min-width:0;" placeholder="ค้นหา..." />
+        </div>
+        <!-- Group → Form tree -->
         <div class="flex-1 overflow-y-auto border border-gray-200 rounded-lg min-h-0">
-          <div v-for="f in sortedForms" :key="f.formCode"
-            class="px-3 py-2 text-xs border-b border-gray-100 last:border-0 transition-colors relative"
-            :class="moveMode
-              ? scanStore.selectedFormCode === f.formCode
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : moveTargetForm === f.formCode
-                  ? 'bg-red-100 text-red-700 font-semibold cursor-pointer'
-                  : 'text-gray-700 hover:bg-red-50 cursor-pointer'
-              : scanStore.selectedFormCode === f.formCode
-                ? 'bg-blue-100 text-blue-800 font-semibold cursor-pointer'
-                : 'text-gray-700 hover:bg-blue-50 cursor-pointer'"
-            @click="onFormClick(f.formCode)">
-            <div class="font-mono text-[10px] text-gray-400">{{ f.formCode }}</div>
-            <div>{{ f.name }}</div>
-            <!-- cnt badge per form -->
-            <span v-if="scanStore.selectedTreatNo && scanStore.formCountMap[f.formCode]"
-              class="absolute top-1 right-1 bg-red-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full leading-none">
-              {{ scanStore.formCountMap[f.formCode] }}
-            </span>
-          </div>
-          <div v-if="scanStore.forms.length === 0" class="text-center py-4 text-gray-400 text-xs">
-            ไม่มีข้อมูลฟอร์ม
+          <template v-for="g in filteredFormGroups" :key="g.GRPCODE">
+            <div
+              class="flex items-center gap-1.5 px-2 py-1.5 bg-gray-50 border-b border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors sticky top-0 z-10"
+              @click="toggleGroup(g.GRPCODE)">
+              <i class="bi text-[10px] text-gray-400"
+                :class="expandedFormGroups.has(g.GRPCODE) ? 'bi-chevron-down' : 'bi-chevron-right'" />
+              <span class="text-xs font-semibold text-gray-600 flex-1 truncate">{{ g.NAME }}</span>
+              <span v-if="scanStore.selectedTreatNo && groupCntSum(g.GRPCODE) > 0"
+                class="bg-red-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full leading-none mr-1">
+                {{ groupCntSum(g.GRPCODE) }}
+              </span>
+              <span class="text-[10px] text-gray-400">[{{ formsInGroup(g.GRPCODE).length }}]</span>
+            </div>
+            <template v-if="expandedFormGroups.has(g.GRPCODE)">
+              <div v-for="f in sortedFormsInGroup(g.GRPCODE)" :key="f.formCode"
+                class="pl-5 pr-2 py-1.5 text-xs border-b border-gray-100 last:border-0 transition-colors relative"
+                :class="moveMode
+                  ? scanStore.selectedFormCode === f.formCode
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : moveTargetForm === f.formCode
+                      ? 'bg-red-100 text-red-700 font-semibold cursor-pointer'
+                      : 'text-gray-700 hover:bg-red-50 cursor-pointer'
+                  : scanStore.selectedFormCode === f.formCode
+                    ? 'bg-blue-100 text-blue-800 font-semibold cursor-pointer'
+                    : 'text-gray-700 hover:bg-blue-50 cursor-pointer'"
+                @click="onFormClick(f.formCode)">
+                <div class="font-mono text-[10px] text-gray-400">{{ f.formCode }}</div>
+                <div class="truncate">{{ f.name }}</div>
+                <span v-if="scanStore.selectedTreatNo && scanStore.formCountMap[f.formCode]"
+                  class="absolute top-1 right-1 bg-red-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full leading-none">
+                  {{ scanStore.formCountMap[f.formCode] }}
+                </span>
+              </div>
+            </template>
+          </template>
+          <div v-if="filteredFormGroups.length === 0" class="text-center py-4 text-gray-400 text-xs">
+            ไม่พบข้อมูล
           </div>
         </div>
       </div>
@@ -482,7 +505,7 @@ function deptCodeLabel(t: TreatmentFull) {
   return t.DOCCODE || ''
 }
 
-onMounted(async () => { await scanStore.loadPrgMode() })
+onMounted(async () => { await Promise.all([scanStore.loadPrgMode(), scanStore.loadFormGroups()]) })
 
 // Keyboard navigation for image viewer
 function onKeydown(e: KeyboardEvent) {
@@ -511,6 +534,10 @@ function onKeydown(e: KeyboardEvent) {
 watch(() => viewerImage.value, (v) => {
   if (v) document.addEventListener('keydown', onKeydown)
   else document.removeEventListener('keydown', onKeydown)
+})
+
+watch(() => scanStore.selectedTreatNo, (newVal, oldVal) => {
+  if (newVal !== oldVal) resetExpand()
 })
 
 watch([() => scanStore.selectedTreatNo, () => scanStore.selectedFormCode], async ([treatNo, formCode]) => {
@@ -552,6 +579,7 @@ function clearPatient() {
   lastHn.value = ''; notFound.value = false
   scanStore.clearTreatments()
   imagePages.value = []
+  resetExpand()
 }
 
 function onFileSelect(e: Event) {
@@ -653,6 +681,65 @@ async function onTreatSaved() {
   }
 }
 
+// ── Form group tree ─────────────────────────────────────────
+const formSearchField = ref<'group'|'form'>('group')
+const formSearchKw    = ref('')
+const expandedFormGroups = ref<Set<string>>(new Set())
+
+const formsWithGroup = computed(() =>
+  scanStore.forms.filter(f => f.grpCode && f.grpCode.trim() !== '')
+)
+
+function formsInGroup(grpCode: string): typeof scanStore.forms {
+  return formsWithGroup.value.filter(f => f.grpCode?.trim() === grpCode.trim())
+}
+
+function sortedFormsInGroup(grpCode: string): typeof scanStore.forms {
+  return formsInGroup(grpCode).slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+}
+
+//20260611 Arty
+const filteredFormGroups = computed(() => {
+  const kw = formSearchKw.value.toLowerCase().trim()
+
+  const sortGroups = (groups: any[]) => [...groups].sort((a, b) => {
+    const ca = groupCntSum(a.GRPCODE)
+    const cb = groupCntSum(b.GRPCODE)
+    if (cb !== ca) return cb - ca
+    return (a.NAME || '').localeCompare(b.NAME || '')
+  })
+
+  if (!kw) return sortGroups(scanStore.formGroups.filter(g => formsInGroup(g.GRPCODE).length > 0))
+  if (formSearchField.value === 'group') {
+    return sortGroups(scanStore.formGroups.filter(g =>
+      g.NAME?.toLowerCase().includes(kw) && formsInGroup(g.GRPCODE).length > 0
+    ))
+  } else {
+    return sortGroups(scanStore.formGroups.filter(g => {
+      const matched = formsInGroup(g.GRPCODE).filter(f =>
+        f.name?.toLowerCase().includes(kw) || f.formCode?.toLowerCase().includes(kw)
+      )
+      if (matched.length > 0) expandedFormGroups.value.add(g.GRPCODE)
+      return matched.length > 0
+    }))
+  }
+})
+
+function toggleGroup(grpCode: string) {
+  if (expandedFormGroups.value.has(grpCode)) expandedFormGroups.value.delete(grpCode)
+  else expandedFormGroups.value.add(grpCode)
+  expandedFormGroups.value = new Set(expandedFormGroups.value)
+}
+
+function groupCntSum(grpCode: string): number {
+  return formsInGroup(grpCode).reduce((sum, f) => sum + (scanStore.formCountMap[f.formCode] || 0), 0)
+}
+
+function resetExpand() {
+  expandedFormGroups.value = new Set()
+  scanStore.selectedFormCode = '' //20260611 Arty
+}
+
 const connectingScanner = ref(false)
 
 async function connectScanner() {
@@ -661,7 +748,6 @@ async function connectScanner() {
     const res = await apiBase.get('/scan/token')
     const token = res.data.token
     if (!token) { await dlgAlert('ไม่สามารถขอ token ได้', { type: 'error' }); return }
-    // Open EMRScan via custom protocol
     window.location.href = `emrscan://launch?token=${encodeURIComponent(token)}`
   } catch (e: any) {
     await dlgAlert(e.response?.data?.error || 'เชื่อมต่อ server ไม่ได้', { type: 'error' })
@@ -674,6 +760,8 @@ async function upload() {
   const hn = hnInputer.value?.hnValue?.trim()
   if (!hn || !patientStore.selectedPatient) { await dlgAlert('กรุณาเลือกผู้ป่วยก่อน', { type: 'warning' }); return }
   if (!scanStore.selectedFormCode) { await dlgAlert('กรุณาเลือกฟอร์ม', { type: 'warning' }); return }
+  const isRealForm = scanStore.forms.some(f => f.formCode === scanStore.selectedFormCode)
+  if (!isRealForm) { await dlgAlert('กรุณาเลือกฟอร์มภายใน group ไม่ใช่ group header', { type: 'warning' }); return }
   if (!scanStore.selectedTreatNo) {
     await dlgAlert('กรุณาเลือกแฟ้มผู้ป่วยก่อน', { type: 'warning' }); return
   }

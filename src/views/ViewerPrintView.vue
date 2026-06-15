@@ -1,20 +1,29 @@
 <template>
   <div class="flex gap-4 h-[calc(100vh-115px)]">
 
-    <!-- Left panel: Filter + Form list -->
+    <!-- Left panel -->
     <div class="card flex flex-col w-80 flex-shrink-0 min-h-0">
       <div class="card-header"><i class="bi bi-printer" /> OCR Print</div>
 
-      <!-- Filter tabs: Dept / User / All -->
+      <!-- Patient info -->
+      <div v-if="patientStore.viewerPatient" class="px-3 py-2 border-b border-gray-100 bg-blue-50 text-xs flex-shrink-0">
+        <div class="font-semibold text-[#1a4f7a]">{{ patientStore.viewerPatient.NAME?.trim() }}</div>
+        <div class="text-gray-500">HN: {{ patientStore.viewerLastHn }}
+          <span v-if="patientStore.viewerOcmNum" class="ml-2">OcmNum: {{ patientStore.viewerOcmNum }}</span>
+        </div>
+      </div>
+      <div v-else class="px-3 py-2 border-b border-gray-100 bg-amber-50 text-xs text-amber-700 flex-shrink-0">
+        <i class="bi bi-exclamation-triangle mr-1" />กรุณาค้นหาผู้ป่วยจากแถบด้านบนก่อน
+      </div>
+
+      <!-- Filter tabs -->
       <div class="flex border-b border-gray-200 px-2 pt-2 gap-1 flex-shrink-0">
-        <button
-          v-for="tab in filterTabs" :key="tab.value"
+        <button v-for="tab in filterTabs" :key="tab.value"
           class="px-3 py-1.5 text-xs font-semibold rounded-t-lg border-b-2 transition-colors"
           :class="activeGubun === tab.value
             ? 'border-[#1a4f7a] text-[#1a4f7a] bg-blue-50'
             : 'border-transparent text-gray-500 hover:text-[#1a4f7a]'"
-          @click="changeGubun(tab.value)"
-        >{{ tab.label }}</button>
+          @click="changeGubun(tab.value)">{{ tab.label }}</button>
       </div>
 
       <!-- Search -->
@@ -26,15 +35,12 @@
       <div class="flex-1 overflow-y-auto">
         <div v-if="loading" class="flex justify-center py-8"><span class="loading-spinner" /></div>
         <div v-else-if="filteredForms.length === 0" class="empty-state py-8">
-          <i class="bi bi-inbox text-2xl block mb-2" />
-          <p class="text-xs">ไม่พบข้อมูล</p>
+          <i class="bi bi-inbox text-2xl block mb-2" /><p class="text-xs">ไม่พบข้อมูล</p>
         </div>
-        <div
-          v-for="f in filteredForms" :key="f.FORMCODE"
+        <div v-for="f in filteredForms" :key="f.FORMCODE"
           class="flex items-center gap-2 px-3 py-2 cursor-pointer border-b border-gray-100 hover:bg-blue-50 transition-colors text-xs"
           :class="selectedForm?.FORMCODE === f.FORMCODE ? 'bg-blue-100 text-blue-800 font-semibold' : 'text-gray-700'"
-          @click="selectForm(f)"
-        >
+          @click="selectForm(f)">
           <i class="bi bi-file-earmark-text text-gray-400 flex-shrink-0" />
           <div class="flex-1 min-w-0">
             <div class="font-mono text-[10px] text-gray-400">{{ f.FORMCODE }}</div>
@@ -46,7 +52,7 @@
       <!-- Action buttons -->
       <div class="p-3 border-t border-gray-100 flex gap-2 flex-shrink-0">
         <button class="btn-primary flex-1 justify-center text-xs py-1.5 gap-1"
-          :disabled="!selectedForm || printing" @click="doPrint(false)">
+          :disabled="!selectedForm || printing || !patientStore.viewerPatient" @click="doPrint(false)">
           <span v-if="printing" class="loading-spinner" />
           <i v-else class="bi bi-printer" /> Print
         </button>
@@ -89,9 +95,7 @@
             <p class="text-xs text-gray-500">ฟอร์ม <strong>{{ selectedForm?.FORMCODE }}</strong> เคยถูกพิมพ์ไปแล้ว</p>
             <select v-model="selectedReason" class="form-select text-sm">
               <option value="">-- กรุณาเลือกเหตุผล --</option>
-              <option v-for="r in reprintReasons" :key="r.DtlCod" :value="r.DtlCod">
-                {{ r.DtlCodNam }}
-              </option>
+              <option v-for="r in reprintReasons" :key="r.DtlCod" :value="r.DtlCod">{{ r.DtlCodNam }}</option>
             </select>
           </div>
           <div class="px-5 py-3 border-t border-gray-100 flex gap-2 justify-end">
@@ -108,12 +112,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
+import { usePatientStore } from '@/stores/patient'
 import api from '@/services/api'
 import { useDialog } from '@/composables/useDialog'
-const { alert: dlgAlert, confirm: dlgConfirm } = useDialog()
 
-const authStore = useAuthStore()
+const patientStore = usePatientStore()
+const { alert: dlgAlert } = useDialog()
 
 const filterTabs = [
   { label: 'Dept', value: 'D' },
@@ -121,25 +125,24 @@ const filterTabs = [
   { label: 'All',  value: 'ALL' },
 ]
 
-const activeGubun  = ref('ALL')
-const searchKw     = ref('')
-const loading      = ref(false)
-const loadingPdf   = ref(false)
-const printing     = ref(false)
-const allForms     = ref<any[]>([])
-const selectedForm = ref<any>(null)
-const pdfUrl       = ref('')
-const showReasonModal  = ref(false)
-const reprintReasons   = ref<any[]>([])
-const selectedReason   = ref('')
-const pendingPreview   = ref(false)
+const activeGubun     = ref('ALL')
+const searchKw        = ref('')
+const loading         = ref(false)
+const loadingPdf      = ref(false)
+const printing        = ref(false)
+const allForms        = ref<any[]>([])
+const selectedForm    = ref<any>(null)
+const pdfUrl          = ref('')
+const showReasonModal = ref(false)
+const reprintReasons  = ref<any[]>([])
+const selectedReason  = ref('')
+const pendingPreview  = ref(false)
 
 const filteredForms = computed(() => {
   const kw = searchKw.value.toLowerCase().trim()
   if (!kw) return allForms.value
   return allForms.value.filter(f =>
-    f.FORMCODE?.toLowerCase().includes(kw) || f.FORMNAME?.toLowerCase().includes(kw)
-  )
+    f.FORMCODE?.toLowerCase().includes(kw) || f.FORMNAME?.toLowerCase().includes(kw))
 })
 
 onMounted(async () => {
@@ -178,8 +181,16 @@ async function doPrint(preview: boolean) {
   if (!selectedForm.value) return
   pendingPreview.value = preview
 
+  if (preview) {
+    loadingPdf.value = true
+    try {
+      pdfUrl.value = `/api/ocrprint/pdf/${encodeURIComponent(selectedForm.value.FORMCODE)}`
+    } finally { loadingPdf.value = false }
+    return
+  }
+
   // check reprint
-  const ocmNum = selectedForm.value.FORMCODE
+  const ocmNum = patientStore.viewerOcmNum
   try {
     const res = await api.get('/ocrprint/checkreprint', {
       params: { ocmNum, formCode: selectedForm.value.FORMCODE }
@@ -191,37 +202,38 @@ async function doPrint(preview: boolean) {
     }
   } catch (e) { console.error(e) }
 
-  await executePrint(preview, '')
+  await executePrint('')
 }
 
 async function confirmPrint() {
   if (!selectedReason.value) return
   showReasonModal.value = false
-  await executePrint(pendingPreview.value, selectedReason.value)
+  await executePrint(selectedReason.value)
 }
 
-async function executePrint(preview: boolean, reason: string) {
+async function executePrint(reason: string) {
   if (!selectedForm.value) return
-  if (preview) {
-    loadingPdf.value = true
-    try {
-      pdfUrl.value = `/api/ocrprint/pdf/${encodeURIComponent(selectedForm.value.FORMCODE)}`
-    } finally { loadingPdf.value = false }
-  } else {
-    printing.value = true
-    try {
-      const today = new Date().toISOString().substring(0,10).replace(/-/g,'')
-      await api.post('/ocrprint/print', {
-        formCode: selectedForm.value.FORMCODE,
-        ocmNum: '', outDate: today,
-        patId: '', inDate: today, clinCode: '', docCode: '',
-        reason, patType: 'O',
-      })
-      await dlgAlert('บันทึกคำสั่งพิมพ์สำเร็จ', { type: 'success' })
-    } catch (e: any) {
-      await dlgAlert(e.response?.data?.error || e.message, { type: 'error' })
-    } finally { printing.value = false }
-  }
+  printing.value = true
+  try {
+    const today = new Date().toISOString().substring(0,10).replace(/-/g,'')
+    const res = await api.post('/ocrprint/print', {
+      formCode: selectedForm.value.FORMCODE,
+      ocmNum:   patientStore.viewerOcmNum,
+      outDate:  today,
+      patId:    patientStore.viewerPatient?.PATID || '',
+      inDate:   today,
+      clinCode: '', docCode: '', reason,
+      patType:  'O',
+      treatNo:  patientStore.viewerTreatNo?.toString() || '',
+    })
+    // เปิด EMRPrint.exe ที่ client ผ่าน custom URL protocol
+    const { ocrPk, token } = res.data
+    window.location.href =
+      `emrprint://print?ocrPk=${encodeURIComponent(ocrPk)}&token=${encodeURIComponent(token)}`
+    await dlgAlert('ส่งคำสั่งพิมพ์ไปที่เครื่องพิมพ์แล้ว', { type: 'success' })
+  } catch (e: any) {
+    await dlgAlert(e.response?.data?.error || e.message, { type: 'error' })
+  } finally { printing.value = false }
 }
 </script>
 
