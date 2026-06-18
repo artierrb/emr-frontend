@@ -125,10 +125,9 @@
                   placeholder="ระบุเหตุผลในการปกปิดข้อมูล" />
               </div>
             </div>
-            <div class="px-5 py-3 border-t border-gray-100 flex gap-2 justify-end">
+            <div class="px-5 py-3 border-t border-red-500 flex gap-2 justify-end">
               <button class="btn-outline" @click="showSecureModal = false">ยกเลิก</button>
-              <button class="px-4 py-1.5 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                :disabled="secureSaving || !secureForm.memo.trim()" @click="saveSecure">
+              <button class="btn-primary gap-1" :disabled="secureSaving || !secureForm.memo.trim()" @click="saveSecure">
                 <span v-if="secureSaving" class="loading-spinner" />
                 <i v-else class="bi bi-check-lg" /> บันทึก
               </button>
@@ -234,7 +233,8 @@
             <div v-for="(p, idx) in viewPages" :key="p.PAGENO"
               class="border border-gray-200 rounded-lg overflow-hidden cursor-pointer hover:border-sky-400 hover:shadow-sm transition-all"
               @click="openViewer(idx)">
-              <img :src="`/api/image/${p.PAGENO}?ext=${p.EXTENSION||'jpg'}`"
+              <img :src="`/api/image/${p.PAGENO}?ext=${p.EXTENSION||'jpg'}&thumb=1`"
+                loading="lazy" decoding="async"
                 class="w-full h-28 object-cover bg-gray-100" :alt="`หน้า ${p.PAGE}`"
                 @error="(e:any) => e.target.style.display='none'" />
               <div class="px-1 py-1 text-[10px] text-gray-400 text-center truncate">
@@ -258,6 +258,7 @@
           <button class="viewer-btn" @click="vZoom = Math.min(4, vZoom+0.25)"><i class="bi bi-zoom-in" /></button>
           <button class="viewer-btn" @click="vZoom=1;vRotate=0"><i class="bi bi-aspect-ratio" /></button>
           <button class="viewer-btn" @click="vRotate=(vRotate+90)%360"><i class="bi bi-arrow-clockwise" /></button>
+          <button class="viewer-btn" @click="printCurrentImage" title="พิมพ์รูป"><i class="bi bi-printer" /></button>
           <span class="flex-1 text-white/70 text-sm truncate">{{ viewerLabel }}</span>
           <span class="text-white/50 text-xs">{{ viewerIdx+1 }} / {{ viewPages.length }}</span>
           <button class="viewer-btn" :class="viewerIdx <= 0 ? 'opacity-30' : ''" @click="navViewer(-1)"><i class="bi bi-chevron-left" /></button>
@@ -356,9 +357,14 @@ const viewerOpen = ref(false)
 const viewerIdx  = ref(0)
 const vZoom      = ref(1)
 const vRotate    = ref(0)
+
+// Watermark config (โหลดตอน mount)
+const wmEnabled = ref(false)
+const wmOpacity = ref(0.2)
 const viewerSrc  = computed(() => {
   const p = viewPages.value[viewerIdx.value]
-  return p ? `/api/image/${p.PAGENO}?ext=${p.EXTENSION||'jpg'}` : ''
+  // fmt=jpg → backend แปลง tiff เป็น jpeg เต็มขนาด (Chrome/Edge แสดง tiff ตรงๆ ไม่ได้)
+  return p ? `/api/image/${p.PAGENO}?ext=${p.EXTENSION||'jpg'}&fmt=jpg` : ''
 })
 const viewerLabel = computed(() => {
   const p = viewPages.value[viewerIdx.value]
@@ -625,6 +631,47 @@ function navViewer(dir: number) {
   if (next >= 0 && next < viewPages.value.length) { viewerIdx.value = next; vZoom.value = 1; vRotate.value = 0 }
 }
 
+// พิมพ์เฉพาะรูปที่กำลังดูอยู่ — เปิดหน้าต่างใหม่ใส่รูปเดียว แล้วสั่งพิมพ์
+// ถ้า config เปิด watermark → วาง watermark ทับกลางรูปแบบโปร่งใส (opacity จาก config)
+function printCurrentImage() {
+  const src = viewerSrc.value
+  if (!src) return
+  const win = window.open('', '_blank')
+  if (!win) return
+
+  const wm = wmEnabled.value
+    ? `<img class="wm" src="/api/watermark/image" style="opacity:${wmOpacity.value}" />`
+    : ''
+
+  // รอให้ทุกรูป (เอกสาร + watermark) โหลดเสร็จก่อนค่อยสั่งพิมพ์ — ใช้ตัวนับ
+  win.document.write(`
+    <html><head><title>Print</title>
+    <style>
+      @media print { @page { margin: 0; } }
+      body { margin: 0; }
+      .wrap { position: relative; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+      .doc { max-width: 100%; max-height: 100vh; object-fit: contain; }
+      .wm { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            max-width: 60%; max-height: 60%; object-fit: contain; pointer-events: none; }
+    </style></head>
+    <body><div class="wrap">
+      <img class="doc" src="${src}" />
+      ${wm}
+    </div>
+    <script>
+      (function(){
+        var imgs = document.images, total = imgs.length, loaded = 0;
+        function done(){ loaded++; if (loaded >= total) { window.print(); window.onafterprint = function(){ window.close(); }; } }
+        for (var i=0;i<total;i++){
+          if (imgs[i].complete) done();
+          else { imgs[i].onload = done; imgs[i].onerror = done; }
+        }
+      })();
+    <\/script>
+    </body></html>`)
+  win.document.close()
+}
+
 function onKeydown(e: KeyboardEvent) {
   if (!viewerOpen.value) return
   if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); navViewer(1) }
@@ -640,6 +687,12 @@ function formatDate(d: string) {
 onMounted(async () => {
   await handleOcsLaunch()
   document.addEventListener('keydown', onKeydown)
+  // โหลด config watermark (เปิด/ปิด + opacity)
+  try {
+    const res = await api.get('/watermark/config')
+    wmEnabled.value = !!res.data.enabled
+    wmOpacity.value = typeof res.data.opacity === 'number' ? res.data.opacity : 0.2
+  } catch (e) { console.error(e) }
 })
 onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 </script>

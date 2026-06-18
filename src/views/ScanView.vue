@@ -320,7 +320,8 @@
                 @click="onThumbClick(p)"
               >
                 <img
-                  :src="`/api/image/${p.pageNo}?ext=${p.extension||'jpg'}&t=${p.pageNo}`"
+                  :src="`/api/image/${p.pageNo}?ext=${p.extension||'jpg'}&thumb=1`"
+                  loading="lazy" decoding="async"
                   class="w-full h-20 object-cover bg-gray-100"
                   :alt="`หน้า ${p.page}`"
                   @error="(e:any) => e.target.src=''"
@@ -350,6 +351,7 @@
           <button class="bg-white/10 border-0 text-white px-3 py-1.5 rounded text-sm cursor-pointer hover:bg-white/25" @click="viewZoom = Math.min(4, viewZoom+0.25)"><i class="bi bi-zoom-in" /></button>
           <button class="bg-white/10 border-0 text-white px-3 py-1.5 rounded text-sm cursor-pointer hover:bg-white/25" @click="viewZoom=1;viewRotate=0"><i class="bi bi-aspect-ratio" /></button>
           <button class="bg-white/10 border-0 text-white px-3 py-1.5 rounded text-sm cursor-pointer hover:bg-white/25" @click="viewRotate=(viewRotate+90)%360"><i class="bi bi-arrow-clockwise" /></button>
+          <button class="bg-white/10 border-0 text-white px-3 py-1.5 rounded text-sm cursor-pointer hover:bg-white/25" @click="printCurrentImage" title="พิมพ์รูป"><i class="bi bi-printer" /></button>
           <span class="flex-1 text-white/70 text-sm">{{ viewerImage.label }}</span>
           <span class="text-white/50 text-xs">{{ currentViewIndex + 1 }} / {{ imagePages.length }}</span>
           <button class="bg-white/10 border-0 text-white px-3 py-1.5 rounded text-sm cursor-pointer hover:bg-white/25 disabled:opacity-30"
@@ -516,7 +518,7 @@ function onKeydown(e: KeyboardEvent) {
     if (next < imagePages.value.length) {
       currentViewIndex.value = next
       const p = imagePages.value[next]
-      viewerImage.value = { src: `/api/image/${p.pageNo}?ext=${p.extension||'jpg'}&t=${p.pageNo}`, label: `หน้า ${p.page} — ${p.formCode}` }
+      viewerImage.value = { src: `/api/image/${p.pageNo}?ext=${p.extension||'jpg'}&fmt=jpg`, label: `หน้า ${p.page} — ${p.formCode}` }
     }
   } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
     e.preventDefault()
@@ -524,11 +526,27 @@ function onKeydown(e: KeyboardEvent) {
     if (prev >= 0) {
       currentViewIndex.value = prev
       const p = imagePages.value[prev]
-      viewerImage.value = { src: `/api/image/${p.pageNo}?ext=${p.extension||'jpg'}&t=${p.pageNo}`, label: `หน้า ${p.page} — ${p.formCode}` }
+      viewerImage.value = { src: `/api/image/${p.pageNo}?ext=${p.extension||'jpg'}&fmt=jpg`, label: `หน้า ${p.page} — ${p.formCode}` }
     }
   } else if (e.key === 'Escape') {
     viewerImage.value = null
   }
+}
+
+function printCurrentImage() {
+  if (!viewerImage.value) return
+  const win = window.open('', '_blank')
+  if (!win) return
+  win.document.write(`
+    <html><head><title>Print</title>
+    <style>
+      @media print { @page { margin: 0; } }
+      body { margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+      img { max-width: 100%; max-height: 100vh; object-fit: contain; }
+    </style></head>
+    <body><img src="${viewerImage.value.src}" onload="window.print(); window.onafterprint = () => window.close();" /></body>
+    </html>`)
+  win.document.close()
 }
 
 watch(() => viewerImage.value, (v) => {
@@ -608,7 +626,7 @@ function cancelMoveMode() {
 function onThumbClick(p: any) {
   if (!moveMode.value) {
     currentViewIndex.value = imagePages.value.findIndex((x: any) => x.pageNo === p.pageNo)
-    viewerImage.value = { src: `/api/image/${p.pageNo}?ext=${p.extension||'jpg'}&t=${p.pageNo}`, label: `หน้า ${p.page} — ${p.formCode}` }
+    viewerImage.value = { src: `/api/image/${p.pageNo}?ext=${p.extension||'jpg'}&fmt=jpg`, label: `หน้า ${p.page} — ${p.formCode}` }
     return
   }
   const idx = selectedPages.value.indexOf(p.pageNo)
