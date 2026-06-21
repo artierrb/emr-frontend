@@ -2,11 +2,11 @@
   <Transition name="slide-down">
     <div
       v-if="patient"
-      :class="[
+        :class="[
         'flex items-center gap-3 px-3 py-2 rounded-lg border text-sm mt-2',
         notFound
           ? 'bg-red-50 border-red-200 text-red-700'
-          : 'bg-green-50 border-green-200 text-green-800'
+          : 'bg-blue-50 border-blue-200 text-blue-800'
       ]"
     >
       <i :class="['bi text-base', notFound ? 'bi-exclamation-circle-fill' : 'bi-person-fill']" />

@@ -1,344 +1,420 @@
 <template>
-  <div class="grid gap-4 h-[calc(100vh-120px)]" style="grid-template-columns:2fr 1fr 2fr;">
+  <div
+    class="grid gap-4 h-[calc(100vh-120px)] min-h-0"
+    style="grid-template-columns:1.2fr 1.6fr 1.6fr; grid-template-rows:auto 1fr;"
+  >
 
-    <!-- Col 1: Scanner + Browse -->
-    <div class="flex flex-col gap-4 min-h-0">
-      <!-- Scanner panel -->
-      <div class="card flex-shrink-0">
-        <div class="card-header"><i class="bi bi-usb-symbol" /> Scanner</div>
-        <div class="p-4 space-y-3">
-          <div>
-            <label class="form-label">Profile</label>
-            <select class="form-select" disabled>
-              <option>-- (coming soon) --</option>
-            </select>
-          </div>
-          <button class="btn-outline w-full justify-center" :disabled="connectingScanner" @click="connectScanner">
-            <span v-if="connectingScanner" class="loading-spinner" />
-            <i v-else class="bi bi-plugin" /> Connect Scanner
-          </button>
-          <p class="text-xs text-gray-400 text-center">เปิด EMRScan.exe พร้อม login อัตโนมัติ</p>
+    <!-- ══════════ Patient info card — กินแค่ 2 คอลัมน์ซ้าย ══════════ -->
+    <div class="card" style="grid-column:1 / 3; grid-row:1;">
+      <div class="p-4 flex items-center gap-5">
+        <!-- avatar -->
+        <div class="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0 border border-blue-100">
+          <i class="bi bi-person-fill text-3xl text-blue-300" />
         </div>
-      </div>
 
-      <!-- Browse file -->
-      <div class="card flex-1 flex flex-col min-h-0">
-        <div class="card-header">
-          <i class="bi bi-folder2-open" /> เลือกไฟล์
-          <span class="ml-auto text-xs text-gray-400 font-normal">JPG PNG TIF PDF</span>
-        </div>
-        <div class="p-3 flex flex-col flex-1 min-h-0">
-          <div
-            class="border-2 border-dashed border-gray-200 rounded-lg p-4 text-center cursor-pointer hover:border-sky-400 hover:bg-sky-50 transition-colors flex-shrink-0"
-            :class="{ 'border-sky-400 bg-sky-50': dragging }"
-            @click="fileInput?.click()"
-            @dragover.prevent="dragging = true"
-            @dragleave="dragging = false"
-            @drop.prevent="onDrop"
-          >
-            <i class="bi bi-cloud-arrow-up text-2xl text-gray-400 block mb-1" />
-            <p class="text-xs text-gray-500">
-              <strong class="text-[#1a4f7a]">คลิก</strong> หรือลากมาวาง
-            </p>
+        <!-- ข้อมูลผู้ป่วย -->
+        <template v-if="patientStore.selectedPatient">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="bg-blue-100 text-blue-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                ผู้ป่วยปัจจุบัน
+              </span>
+              <h2 class="text-lg font-bold text-slate-800 truncate">
+                {{ patientStore.selectedPatient.NAME }}
+              </h2>
+              <i v-if="sexIcon" :class="['bi', sexIcon.cls, 'text-lg']" :title="sexIcon.label" />
+            </div>
+            <div class="flex items-center gap-x-4 gap-y-1 mt-1.5 text-sm text-slate-600 flex-wrap">
+              <span>
+                <span class="text-slate-400">HN</span>
+                <strong class="ml-1 text-slate-800" style="font-variant-numeric: tabular-nums;">
+                  {{ patientStore.selectedPatient.PATID.trim() }}
+                </strong>
+              </span>
+              <span class="text-slate-300">|</span>
+              <span>
+                <span class="text-slate-400">อายุ</span>
+                <strong class="ml-1 text-slate-800">{{ patientAge }}</strong>
+              </span>
+              <span class="text-slate-300">|</span>
+              <span>
+                <span class="text-slate-400">เลขสิทธิ</span>
+                <strong class="ml-1 text-slate-800" style="font-variant-numeric: tabular-nums;">
+                  {{ patientStore.selectedPatient.JUMINNO?.trim() || '-' }}
+                </strong>
+              </span>
+            </div>
           </div>
-          <input ref="fileInput" type="file" multiple accept=".jpg,.jpeg,.png,.tif,.tiff,.pdf"
-            class="hidden" @change="onFileSelect" />
 
-          <div class="flex-1 overflow-y-auto mt-2 min-h-0">
-            <div v-if="scanStore.selectedFiles.length > 0" class="grid grid-cols-2 gap-1.5">
-              <div v-for="(f, i) in scanStore.selectedFiles" :key="i"
-                class="border border-gray-200 rounded-lg overflow-hidden relative bg-white">
-                <img v-if="f.type.startsWith('image/')" :src="previewUrls[i]" class="w-full h-20 object-cover" />
-                <div v-else class="w-full h-20 flex items-center justify-center bg-red-50">
-                  <i class="bi bi-file-pdf text-2xl text-red-500" />
-                </div>
-                <div class="px-1 py-0.5 text-[10px] text-gray-400 truncate">{{ i + 1 }}. {{ f.name }}</div>
-                <button
-                  class="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/40 text-white text-[10px] flex items-center justify-center hover:bg-black/60"
-                  @click.stop="scanStore.removeFile(i)">
-                  <i class="bi bi-x" />
-                </button>
+          <!-- visit summary (ขวาบน) -->
+          <div class="flex items-stretch gap-3 flex-shrink-0 pl-4 border-l border-slate-100">
+            <div class="text-center px-1">
+              <div class="text-xs text-slate-400 mb-0.5">Visit ล่าสุด</div>
+              <div class="text-sm font-semibold text-slate-800 whitespace-nowrap">
+                {{ lastVisitDate || '-' }}
               </div>
             </div>
-            <div v-else class="empty-state py-6">
-              <i class="bi bi-images text-2xl block mb-1" />
-              <p class="text-xs">ยังไม่มีไฟล์</p>
+            <div class="text-center px-1">
+              <div class="text-xs text-slate-400 mb-0.5">Visit ทั้งหมด</div>
+              <div class="text-lg font-bold text-blue-600" style="font-variant-numeric: tabular-nums;">
+                {{ scanStore.treatments.length }}
+              </div>
             </div>
           </div>
+        </template>
+
+        <!-- ยังไม่ได้เลือกผู้ป่วย -->
+        <div v-else class="flex-1 flex items-center text-slate-400 text-sm">
+          <i class="bi bi-person-vcard text-lg mr-2" />
+          ค้นหาและเลือกผู้ป่วยจากช่องค้นหาด้านขวา
         </div>
       </div>
     </div>
 
-    <!-- Col 2: Scan + Upload + Form list -->
-    <div class="card flex flex-col items-center gap-3 p-4 overflow-hidden">
-      <button
-        class="w-32 h-32 rounded-2xl border-4 border-[#1a4f7a] text-[#1a4f7a] flex flex-col items-center justify-center gap-2 hover:bg-blue-50 transition-colors cursor-not-allowed opacity-60 flex-shrink-0"
-        disabled title="Scanner integration อยู่ระหว่างพัฒนา">
-        <i class="bi bi-scanner text-4xl" />
-        <span class="font-bold text-lg">SCAN</span>
-      </button>
-
-      <button
-        class="w-32 h-10 rounded-xl border-2 flex items-center justify-center gap-2 text-sm font-medium transition-colors flex-shrink-0"
-        :class="scanStore.uploading || scanStore.selectedFiles.length === 0
-          ? 'border-gray-200 text-gray-400 cursor-not-allowed'
-          : 'border-sky-400 text-sky-600 hover:bg-sky-50'"
-        :disabled="scanStore.uploading || scanStore.selectedFiles.length === 0"
-        @click="upload">
-        <i class="bi bi-cloud-upload" /> Upload
-      </button>
-
-      <div v-if="scanStore.uploading" class="w-full space-y-1 flex-shrink-0">
-        <div class="flex justify-between text-xs text-gray-500">
-          <span>กำลังบันทึก...</span><span>{{ scanStore.uploadProgress }}%</span>
+    <!-- ───── Col 1: Scanner + Browse (ย่อ) — แถวล่างซ้าย ───── -->
+    <div class="flex flex-col gap-4 min-h-0" style="grid-column:1; grid-row:2;">
+        <!-- Scanner panel -->
+        <div class="card flex-shrink-0">
+          <div class="card-header"><i class="bi bi-usb-symbol" /> Scanner</div>
+          <div class="p-3 space-y-2">
+            <select class="form-select text-sm" disabled>
+              <option>-- Profile (coming soon) --</option>
+            </select>
+            <button
+              class="scan-now-btn"
+              :disabled="connectingScanner"
+              @click="connectScanner"
+            >
+              <span v-if="connectingScanner" class="loading-spinner !w-7 !h-7 !border-white/40 !border-t-white" />
+              <i v-else class="bi bi-scanner text-3xl" />
+              <span class="scan-now-title">Scan Now</span>
+              <span class="scan-now-sub">เริ่มสแกนเอกสาร</span>
+            </button>
+            <p class="text-[11px] text-gray-400 text-center">เปิด EMRScan.exe พร้อม login อัตโนมัติ</p>
+          </div>
         </div>
-        <div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
-          <div class="h-full bg-sky-400 rounded-full transition-all"
-            :style="{ width: scanStore.uploadProgress + '%' }" />
+
+        <!-- Browse file -->
+        <div class="card flex-1 flex flex-col min-h-0">
+          <div class="card-header">
+            <i class="bi bi-folder2-open" /> เลือกไฟล์
+            <span class="ml-auto text-xs text-gray-400 font-normal">JPG PNG TIF PDF</span>
+          </div>
+          <div class="p-3 flex flex-col flex-1 min-h-0">
+            <div
+              class="border-2 border-dashed border-gray-200 rounded-lg p-3 text-center cursor-pointer hover:border-sky-400 hover:bg-sky-50 transition-colors flex-shrink-0"
+              :class="{ 'border-sky-400 bg-sky-50': dragging }"
+              @click="fileInput?.click()"
+              @dragover.prevent="dragging = true"
+              @dragleave="dragging = false"
+              @drop.prevent="onDrop"
+            >
+              <i class="bi bi-cloud-arrow-up text-xl text-gray-400 block mb-1" />
+              <p class="text-xs text-gray-500">
+                <strong class="text-[#1a4f7a]">คลิก</strong> หรือลากมาวาง
+              </p>
+            </div>
+            <input ref="fileInput" type="file" multiple accept=".jpg,.jpeg,.png,.tif,.tiff,.pdf"
+              class="hidden" @change="onFileSelect" />
+
+            <div class="flex-1 overflow-y-auto mt-2 min-h-0">
+              <div v-if="scanStore.selectedFiles.length > 0" class="grid grid-cols-2 gap-1.5">
+                <div v-for="(f, i) in scanStore.selectedFiles" :key="i"
+                  class="border border-gray-200 rounded-lg overflow-hidden relative bg-white">
+                  <img v-if="f.type.startsWith('image/')" :src="previewUrls[i]" class="w-full h-16 object-cover" />
+                  <div v-else class="w-full h-16 flex items-center justify-center bg-red-50">
+                    <i class="bi bi-file-pdf text-xl text-red-500" />
+                  </div>
+                  <div class="px-1 py-0.5 text-[10px] text-gray-400 truncate">{{ i + 1 }}. {{ f.name }}</div>
+                  <button
+                    class="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/40 text-white text-[10px] flex items-center justify-center hover:bg-black/60"
+                    @click.stop="scanStore.removeFile(i)">
+                    <i class="bi bi-x" />
+                  </button>
+                </div>
+              </div>
+              <div v-else class="empty-state py-4">
+                <i class="bi bi-images text-xl block mb-1" />
+                <p class="text-xs">ยังไม่มีไฟล์</p>
+              </div>
+            </div>
+
+            <!-- Scan + Upload actions (ย่อมารวมในคอลัมน์นี้) -->
+            <div class="flex-shrink-0 mt-2 pt-2 border-t border-gray-100 space-y-2">
+              <div class="flex gap-2">
+                <button
+                  class="flex-1 h-10 rounded-lg border-2 border-[#1a4f7a] text-[#1a4f7a] flex items-center justify-center gap-1.5 text-sm font-bold cursor-not-allowed opacity-60"
+                  disabled title="Scanner integration อยู่ระหว่างพัฒนา">
+                  <i class="bi bi-scanner text-lg" /> SCAN
+                </button>
+                <button
+                  class="flex-1 h-10 rounded-lg border-2 flex items-center justify-center gap-1.5 text-sm font-medium transition-colors"
+                  :class="scanStore.uploading || scanStore.selectedFiles.length === 0
+                    ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                    : 'border-sky-400 text-sky-600 hover:bg-sky-50'"
+                  :disabled="scanStore.uploading || scanStore.selectedFiles.length === 0"
+                  @click="upload">
+                  <i class="bi bi-cloud-upload text-lg" /> Upload
+                </button>
+              </div>
+
+              <div v-if="scanStore.uploading" class="w-full space-y-1">
+                <div class="flex justify-between text-xs text-gray-500">
+                  <span>กำลังบันทึก...</span><span>{{ scanStore.uploadProgress }}%</span>
+                </div>
+                <div class="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                  <div class="h-full bg-sky-400 rounded-full transition-all"
+                    :style="{ width: scanStore.uploadProgress + '%' }" />
+                </div>
+              </div>
+
+              <div v-if="scanStore.selectedFiles.length > 0" class="text-xs text-gray-500 text-center">
+                {{ scanStore.selectedFiles.length }} ไฟล์รอ upload
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div v-if="scanStore.selectedFiles.length > 0" class="text-xs text-gray-500 flex-shrink-0">
-        {{ scanStore.selectedFiles.length }} ไฟล์รอ upload
-      </div>
-
-      <hr class="w-full border-gray-100 flex-shrink-0" />
-
-      <!-- ประเภทฟอร์ม list -->
-      <div class="w-full flex flex-col flex-1 min-h-0">
-        <div class="flex items-center justify-between mb-1 flex-shrink-0">
-          <p class="text-xs font-semibold text-gray-500">
-            ประเภทฟอร์ม <span class="text-red-500">*</span>
-          </p>
+      <!-- ───── Col 2: ประเภทฟอร์ม (ขยายใหญ่) — แถวล่างกลาง ───── -->
+      <div class="card flex flex-col min-h-0" style="grid-column:2; grid-row:2;">
+        <div class="card-header">
+          <i class="bi bi-folder2-open" /> ประเภทฟอร์ม <span class="text-red-500">*</span>
           <span v-if="scanStore.selectedTreatNo && selectedFormCnt !== null"
-            class="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+            class="ml-auto bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-full">
             {{ selectedFormCnt }}
           </span>
         </div>
-        <!-- Search bar -->
-        <div class="flex gap-1 mb-1 flex-shrink-0">
-          <select v-model="formSearchField" class="form-select text-xs py-0.5" style="width:77px;flex-shrink:0;">
-            <option value="group">Group</option>
-            <option value="form">Form</option>
-          </select>
-          <input v-model="formSearchKw" type="text" class="form-input text-xs py-0.5" style="flex:1;min-width:0;" placeholder="ค้นหา..." />
-        </div>
-        <!-- Group → Form tree -->
-        <div class="flex-1 overflow-y-auto border border-gray-200 rounded-lg min-h-0">
-          <template v-for="g in filteredFormGroups" :key="g.GRPCODE">
-            <div
-              class="flex items-center gap-1.5 px-2 py-1.5 bg-gray-50 border-b border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors sticky top-0 z-10"
-              @click="toggleGroup(g.GRPCODE)">
-              <i class="bi text-[10px] text-gray-400"
-                :class="expandedFormGroups.has(g.GRPCODE) ? 'bi-chevron-down' : 'bi-chevron-right'" />
-              <span class="text-xs font-semibold text-gray-600 flex-1 truncate">{{ g.NAME }}</span>
-              <span v-if="scanStore.selectedTreatNo && groupCntSum(g.GRPCODE) > 0"
-                class="bg-red-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full leading-none mr-1">
-                {{ groupCntSum(g.GRPCODE) }}
-              </span>
-              <span class="text-[10px] text-gray-400">[{{ formsInGroup(g.GRPCODE).length }}]</span>
-            </div>
-            <template v-if="expandedFormGroups.has(g.GRPCODE)">
-              <div v-for="f in sortedFormsInGroup(g.GRPCODE)" :key="f.formCode"
-                class="pl-5 pr-2 py-1.5 text-xs border-b border-gray-100 last:border-0 transition-colors relative"
-                :class="moveMode
-                  ? scanStore.selectedFormCode === f.formCode
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    : moveTargetForm === f.formCode
-                      ? 'bg-red-100 text-red-700 font-semibold cursor-pointer'
-                      : 'text-gray-700 hover:bg-red-50 cursor-pointer'
-                  : scanStore.selectedFormCode === f.formCode
-                    ? 'bg-blue-100 text-blue-800 font-semibold cursor-pointer'
-                    : 'text-gray-700 hover:bg-blue-50 cursor-pointer'"
-                @click="onFormClick(f.formCode)">
-                <div class="font-mono text-[10px] text-gray-400">{{ f.formCode }}</div>
-                <div class="truncate">{{ f.name }}</div>
-                <span v-if="scanStore.selectedTreatNo && scanStore.formCountMap[f.formCode]"
-                  class="absolute top-1 right-1 bg-red-500 text-white text-[9px] font-bold px-1 py-0.5 rounded-full leading-none">
-                  {{ scanStore.formCountMap[f.formCode] }}
-                </span>
-              </div>
-            </template>
-          </template>
-          <div v-if="filteredFormGroups.length === 0" class="text-center py-4 text-gray-400 text-xs">
-            ไม่พบข้อมูล
+        <div class="p-3 flex flex-col flex-1 min-h-0">
+          <!-- Search bar -->
+          <div class="flex gap-1.5 mb-2 flex-shrink-0">
+            <select v-model="formSearchField" class="form-select text-sm" style="width:90px;flex-shrink:0;">
+              <option value="group">Group</option>
+              <option value="form">Form</option>
+            </select>
+            <input v-model="formSearchKw" type="text" class="form-input text-sm" style="flex:1;min-width:0;" placeholder="ค้นหาประเภทฟอร์ม..." />
           </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Col 3: Patient info + แฟ้มผู้ป่วย table -->
-    <div class="card flex flex-col min-h-0">
-      <div class="card-header"><i class="bi bi-person-vcard" /> ข้อมูลผู้ป่วย</div>
-      <div class="p-4 flex flex-col flex-1 min-h-0 gap-4">
-
-        <!-- HN -->
-        <div class="flex-shrink-0">
-          <label class="form-label">HN (รหัสผู้ป่วย) <span class="text-red-500">*</span></label>
-          <HnInputer ref="hnInputer" :is-sep="patientStore.hnConfig.hnSep === 'Y'"
-            @search="onHnSearch" @open-search="showSearch = true" @clear="clearPatient" />
-          <PatientInfoBox :patient="patientStore.selectedPatient" :hn="lastHn"
-            :not-found="notFound" @clear="clearPatient" />
-        </div>
-
-        <!-- แฟ้มผู้ป่วย table -->
-        <div class="flex flex-col min-h-0" style="height:45%;">
-          <div class="flex items-center gap-2 mb-1 flex-shrink-0">
-            <label class="form-label mb-0">แฟ้มผู้ป่วย <span class="text-red-500">*</span></label>
-            <span v-if="scanStore.loadingTreatments" class="loading-spinner" />
-            <div class="ml-auto flex gap-1">
-              <button
-                class="w-6 h-6 flex items-center justify-center rounded border border-gray-200 bg-white text-gray-600 text-xs hover:border-blue-400 hover:text-blue-700 transition-colors"
-                title="เพิ่มแฟ้ม"
-                :disabled="!patientStore.selectedPatient"
-                @click="showTreatForm = true"
-              ><i class="bi bi-plus-lg" /></button>
-              <button
-                class="w-6 h-6 flex items-center justify-center rounded border border-gray-200 bg-white text-xs hover:border-red-400 hover:text-red-600 transition-colors"
-                :class="scanStore.selectedTreatNo ? 'text-gray-600' : 'text-gray-300 cursor-not-allowed'"
-                title="ลบแฟ้มที่เลือก"
-                :disabled="!scanStore.selectedTreatNo"
-                @click="showConfirmDelete = true"
-              ><i class="bi bi-trash" /></button>
-            </div>
-          </div>
-
-          <div class="flex-1 overflow-auto border border-gray-200 rounded-lg min-h-0">
-            <table class="w-full text-[11px] border-collapse">
-              <thead class="sticky top-0 z-10">
-                <tr>
-                  <th class="treat-th">I/O</th>
-                  <th class="treat-th">Dept</th>
-                  <th class="treat-th">In</th>
-                  <th class="treat-th">Out</th>
-                  <th class="treat-th">Dr.</th>
-                  <th class="treat-th text-center">C1</th>
-                  <th class="treat-th text-center">C2</th>
-                  <th class="treat-th text-center">Inco</th>
-                  <th class="treat-th text-right">Cnt</th>
-                  <th class="treat-th">DeptCode</th>
-                  <th class="treat-th">DrCode</th>
-                  <th class="treat-th text-right">TreatNo</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="scanStore.treatments.length === 0">
-                  <td colspan="12" class="text-center py-4 text-gray-400">
-                    {{ patientStore.selectedPatient ? 'ไม่พบข้อมูล' : 'เลือกผู้ป่วยก่อน' }}
-                  </td>
-                </tr>
-                <tr v-for="t in scanStore.treatments" :key="t.TREATNO"
-                  class="cursor-pointer hover:bg-blue-50 transition-colors"
-                  :class="scanStore.selectedTreatNo === t.TREATNO ? 'bg-blue-100' : ''"
-                  @click="scanStore.selectTreatment(t)">
-                  <td class="treat-td font-bold" :class="t.CLASS === 'I' ? 'text-blue-700' : 'text-green-700'">
-                    {{ t.CLASS }}
-                  </td>
-                  <td class="treat-td truncate max-w-[70px]" :title="t.CLINNAME">{{ t.CLINNAME }}</td>
-                  <td class="treat-td whitespace-nowrap">{{ formatDate(t.INDATE) }}</td>
-                  <td class="treat-td whitespace-nowrap">{{ formatDate(t.OUTDATE) }}</td>
-                  <td class="treat-td truncate max-w-[60px]" :title="t.DOCNAME">{{ t.DOCNAME }}</td>
-                  <td class="treat-td text-center" @click.stop>
-                    <input type="checkbox" :checked="t.CHECKED === '1'"
-                      class="cursor-pointer"
-                      @change="scanStore.toggleCheck(t.TREATNO, 1, t.CHECKED)" />
-                  </td>
-                  <td class="treat-td text-center" @click.stop>
-                    <input type="checkbox" :checked="t.CHECKED2 === '1'"
-                      class="cursor-pointer"
-                      @change="scanStore.toggleCheck(t.TREATNO, 2, t.CHECKED2)" />
-                  </td>
-                  <td class="treat-td text-center" @click.stop>
-                    <input type="checkbox" :checked="t.CHECKED3 === '1'"
-                      class="cursor-pointer"
-                      @change="scanStore.toggleCheck(t.TREATNO, 3, t.CHECKED3)" />
-                  </td>
-                  <td class="treat-td text-right font-mono">{{ t.CNT }}</td>
-                  <td class="treat-td text-gray-400">{{ t.CLINCODE }}</td>
-                  <td class="treat-td text-gray-400">{{ deptCodeLabel(t) }}</td>
-                  <td class="treat-td text-right font-mono text-gray-500">{{ t.TREATNO }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-        </div>
-
-        <!-- รูปภาพจากฟอร์มที่เลือก -->
-        <div class="flex flex-col min-h-0" style="flex:1;">
-          <div class="flex items-center gap-2 mb-1 flex-shrink-0">
-            <label class="form-label mb-0">
-              รูปภาพ
-              <span v-if="scanStore.selectedFormCode" class="text-gray-400 font-normal">— {{ scanStore.selectedFormCode }}</span>
-            </label>
-            <span v-if="loadingImages" class="loading-spinner" />
-            <span v-if="imagePages.length > 0" class="text-xs text-gray-400">{{ imagePages.length }} ภาพ</span>
-            <div class="ml-auto flex gap-1">
-              <!-- Normal mode: ปุ่มย้ายแฟ้ม -->
-              <template v-if="!moveMode">
-                <button
-                  v-if="imagePages.length > 0"
-                  class="icon-sm-btn" title="ย้ายรูปภาพ"
-                  @click="enterMoveMode"
-                ><i class="bi bi-folder-symlink" /></button>
-              </template>
-              <!-- Move mode: ตกลง / ยกเลิก -->
-              <template v-else>
-                <button class="icon-sm-btn" title="select all" @click="toggleSelectAll">
-                  <i :class="selectedPages.length === imagePages.length ? 'bi bi-check-square' : 'bi bi-square'" />
-                </button>
-                <span class="text-xs text-blue-700 self-center font-medium">เลือก {{ selectedPages.length }} ภาพ</span>
-                <button class="icon-sm-btn text-green-600 hover:border-green-400" title="ตกลง" @click="confirmMove"><i class="bi bi-check-lg" /></button>
-                <button class="icon-sm-btn text-red-500 hover:border-red-400" title="ยกเลิก" @click="cancelMoveMode"><i class="bi bi-x-lg" /></button>
-              </template>
-            </div>
-          </div>
-
-          <div class="flex-1 overflow-y-auto border border-gray-200 rounded-lg min-h-0 p-2">
-            <div v-if="!scanStore.selectedTreatNo || !scanStore.selectedFormCode"
-              class="empty-state py-4">
-              <i class="bi bi-images text-xl block mb-1" />
-              <p class="text-xs">เลือกแฟ้มและฟอร์มเพื่อดูรูปภาพ</p>
-            </div>
-            <div v-else-if="loadingImages" class="flex justify-center py-4">
-              <span class="loading-spinner" />
-            </div>
-            <div v-else-if="imagePages.length === 0" class="empty-state py-4">
-              <i class="bi bi-image text-xl block mb-1" />
-              <p class="text-xs">ไม่มีรูปภาพในฟอร์มนี้</p>
-            </div>
-            <div v-else class="grid grid-cols-3 gap-2">
+          <!-- Group → Form tree -->
+          <div class="flex-1 overflow-y-auto border border-gray-200 rounded-lg min-h-0">
+            <template v-for="g in filteredFormGroups" :key="g.GRPCODE">
               <div
-                v-for="p in imagePages"
-                :key="p.pageNo"
-                class="border rounded-lg overflow-hidden cursor-pointer transition-all relative"
-                :class="moveMode
-                  ? selectedPages.includes(p.pageNo)
-                    ? 'border-sky-400 ring-2 ring-sky-300'
-                    : 'border-gray-200 hover:border-sky-300'
-                  : 'border-gray-200 hover:border-sky-400 hover:shadow-sm'"
-                @click="onThumbClick(p)"
-              >
-                <img
-                  :src="`/api/image/${p.pageNo}?ext=${p.extension||'jpg'}&thumb=1`"
-                  loading="lazy" decoding="async"
-                  class="w-full h-20 object-cover bg-gray-100"
-                  :alt="`หน้า ${p.page}`"
-                  @error="(e:any) => e.target.src=''"
-                />
-                <!-- select order badge -->
-                <div v-if="moveMode && selectedPages.includes(p.pageNo)"
-                  class="absolute top-1 left-1 bg-sky-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow">
-                  {{ selectedPages.indexOf(p.pageNo) + 1 }}
-                </div>
-                <div class="px-1 py-0.5 text-[10px] text-gray-400 text-center">หน้า {{ p.page }}</div>
+                class="flex items-center gap-2 px-3 py-2.5 bg-gray-50 border-b border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors sticky top-0 z-10"
+                @click="toggleGroup(g.GRPCODE)">
+                <i class="bi text-xs text-gray-400"
+                  :class="expandedFormGroups.has(g.GRPCODE) ? 'bi-chevron-down' : 'bi-chevron-right'" />
+                <i class="bi text-base text-blue-400"
+                  :class="expandedFormGroups.has(g.GRPCODE) ? 'bi-folder2-open' : 'bi-folder-fill'" />
+                <span class="text-sm font-semibold text-gray-600 flex-1 truncate">{{ g.NAME }}</span>
+                <span v-if="scanStore.selectedTreatNo && groupCntSum(g.GRPCODE) > 0"
+                  class="bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                  {{ groupCntSum(g.GRPCODE) }}
+                </span>
+                <span class="text-[11px] text-gray-400 min-w-[28px] text-right">[{{ formsInGroup(g.GRPCODE).length }}]</span>
               </div>
+              <template v-if="expandedFormGroups.has(g.GRPCODE)">
+                <div v-for="f in sortedFormsInGroup(g.GRPCODE)" :key="f.formCode"
+                  class="flex items-start gap-2 pl-8 pr-3 py-2 text-sm border-b border-gray-100 last:border-0 transition-colors relative"
+                  :class="moveMode
+                    ? scanStore.selectedFormCode === f.formCode
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : moveTargetForm === f.formCode
+                        ? 'bg-red-100 text-red-700 font-semibold cursor-pointer'
+                        : 'text-gray-700 hover:bg-red-50 cursor-pointer'
+                    : scanStore.selectedFormCode === f.formCode
+                      ? 'bg-blue-100 text-blue-800 font-semibold cursor-pointer'
+                      : 'text-gray-700 hover:bg-blue-50 cursor-pointer'"
+                  @click="onFormClick(f.formCode)">
+                  <i class="bi bi-file-earmark-text text-gray-300 text-sm mt-0.5 flex-shrink-0" />
+                  <div class="min-w-0 flex-1">
+                    <div class="font-mono text-[10px] text-gray-400">{{ f.formCode }}</div>
+                    <div class="truncate">{{ f.name }}</div>
+                  </div>
+                  <span v-if="scanStore.selectedTreatNo && scanStore.formCountMap[f.formCode]"
+                    class="absolute top-2 right-2 bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                    {{ scanStore.formCountMap[f.formCode] }}
+                  </span>
+                </div>
+              </template>
+            </template>
+            <div v-if="filteredFormGroups.length === 0" class="text-center py-6 text-gray-400 text-sm">
+              ไม่พบข้อมูล
             </div>
           </div>
         </div>
-
       </div>
-    </div>
+
+      <!-- ───── Col 3: HN search + แฟ้มผู้ป่วย table + รูปภาพ — ขวาเต็มความสูง ───── -->
+      <div class="card flex flex-col min-h-0" style="grid-column:3; grid-row:1 / 3;">
+        <div class="card-header"><i class="bi bi-person-vcard" /> ข้อมูลผู้ป่วย</div>
+        <div class="p-4 flex flex-col flex-1 min-h-0 gap-4">
+
+          <!-- HN -->
+          <div class="flex-shrink-0">
+            <label class="form-label">HN (รหัสผู้ป่วย) <span class="text-red-500">*</span></label>
+            <HnInputer ref="hnInputer" :is-sep="patientStore.hnConfig.hnSep === 'Y'"
+              @search="onHnSearch" @open-search="showSearch = true" @clear="clearPatient" />
+            <PatientInfoBox :patient="patientStore.selectedPatient" :hn="lastHn"
+              :not-found="notFound" @clear="clearPatient" />
+          </div>
+
+          <!-- แฟ้มผู้ป่วย table -->
+          <div class="flex flex-col min-h-0" style="height:45%;">
+            <div class="flex items-center gap-2 mb-1 flex-shrink-0">
+              <label class="form-label mb-0">แฟ้มผู้ป่วย <span class="text-red-500">*</span></label>
+              <span v-if="scanStore.loadingTreatments" class="loading-spinner" />
+              <div class="ml-auto flex gap-1">
+                <button
+                  class="w-6 h-6 flex items-center justify-center rounded border border-gray-200 bg-white text-gray-600 text-xs hover:border-blue-400 hover:text-blue-700 transition-colors"
+                  title="เพิ่มแฟ้ม"
+                  :disabled="!patientStore.selectedPatient"
+                  @click="showTreatForm = true"
+                ><i class="bi bi-plus-lg" /></button>
+                <button
+                  class="w-6 h-6 flex items-center justify-center rounded border border-gray-200 bg-white text-xs hover:border-red-400 hover:text-red-600 transition-colors"
+                  :class="scanStore.selectedTreatNo ? 'text-gray-600' : 'text-gray-300 cursor-not-allowed'"
+                  title="ลบแฟ้มที่เลือก"
+                  :disabled="!scanStore.selectedTreatNo"
+                  @click="showConfirmDelete = true"
+                ><i class="bi bi-trash" /></button>
+              </div>
+            </div>
+
+            <div class="flex-1 overflow-auto border border-gray-200 rounded-lg min-h-0">
+              <table class="w-full text-[11px] border-collapse">
+                <thead class="sticky top-0 z-10">
+                  <tr>
+                    <th class="treat-th">I/O</th>
+                    <th class="treat-th">Dept</th>
+                    <th class="treat-th">In</th>
+                    <th class="treat-th">Out</th>
+                    <th class="treat-th">Dr.</th>
+                    <th class="treat-th text-center">C1</th>
+                    <th class="treat-th text-center">C2</th>
+                    <th class="treat-th text-center">Inco</th>
+                    <th class="treat-th text-right">Cnt</th>
+                    <th class="treat-th">DeptCode</th>
+                    <th class="treat-th">DrCode</th>
+                    <th class="treat-th text-right">TreatNo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="scanStore.treatments.length === 0">
+                    <td colspan="12" class="text-center py-4 text-gray-400">
+                      {{ patientStore.selectedPatient ? 'ไม่พบข้อมูล' : 'เลือกผู้ป่วยก่อน' }}
+                    </td>
+                  </tr>
+                  <tr v-for="t in scanStore.treatments" :key="t.TREATNO"
+                    class="cursor-pointer hover:bg-blue-50 transition-colors"
+                    :class="scanStore.selectedTreatNo === t.TREATNO ? 'bg-blue-100' : ''"
+                    @click="scanStore.selectTreatment(t)">
+                    <td class="treat-td font-bold" :class="t.CLASS === 'I' ? 'text-blue-700' : 'text-green-700'">
+                      {{ t.CLASS }}
+                    </td>
+                    <td class="treat-td truncate max-w-[70px]" :title="t.CLINNAME">{{ t.CLINNAME }}</td>
+                    <td class="treat-td whitespace-nowrap">{{ formatDate(t.INDATE) }}</td>
+                    <td class="treat-td whitespace-nowrap">{{ formatDate(t.OUTDATE) }}</td>
+                    <td class="treat-td truncate max-w-[60px]" :title="t.DOCNAME">{{ t.DOCNAME }}</td>
+                    <td class="treat-td text-center" @click.stop>
+                      <input type="checkbox" :checked="t.CHECKED === '1'"
+                        class="cursor-pointer"
+                        @change="scanStore.toggleCheck(t.TREATNO, 1, t.CHECKED)" />
+                    </td>
+                    <td class="treat-td text-center" @click.stop>
+                      <input type="checkbox" :checked="t.CHECKED2 === '1'"
+                        class="cursor-pointer"
+                        @change="scanStore.toggleCheck(t.TREATNO, 2, t.CHECKED2)" />
+                    </td>
+                    <td class="treat-td text-center" @click.stop>
+                      <input type="checkbox" :checked="t.CHECKED3 === '1'"
+                        class="cursor-pointer"
+                        @change="scanStore.toggleCheck(t.TREATNO, 3, t.CHECKED3)" />
+                    </td>
+                    <td class="treat-td text-right font-mono">{{ t.CNT }}</td>
+                    <td class="treat-td text-gray-400">{{ t.CLINCODE }}</td>
+                    <td class="treat-td text-gray-400">{{ deptCodeLabel(t) }}</td>
+                    <td class="treat-td text-right font-mono text-gray-500">{{ t.TREATNO }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+
+          <!-- รูปภาพจากฟอร์มที่เลือก -->
+          <div class="flex flex-col min-h-0" style="flex:1;">
+            <div class="flex items-center gap-2 mb-1 flex-shrink-0">
+              <label class="form-label mb-0">
+                รูปภาพ
+                <span v-if="scanStore.selectedFormCode" class="text-gray-400 font-normal">— {{ scanStore.selectedFormCode }}</span>
+              </label>
+              <span v-if="loadingImages" class="loading-spinner" />
+              <span v-if="imagePages.length > 0" class="text-xs text-gray-400">{{ imagePages.length }} ภาพ</span>
+              <div class="ml-auto flex gap-1">
+                <!-- Normal mode: ปุ่มย้ายแฟ้ม -->
+                <template v-if="!moveMode">
+                  <button
+                    v-if="imagePages.length > 0"
+                    class="icon-sm-btn" title="ย้ายรูปภาพ"
+                    @click="enterMoveMode"
+                  ><i class="bi bi-folder-symlink" /></button>
+                </template>
+                <!-- Move mode: ตกลง / ยกเลิก -->
+                <template v-else>
+                  <button class="icon-sm-btn" title="select all" @click="toggleSelectAll">
+                    <i :class="selectedPages.length === imagePages.length ? 'bi bi-check-square' : 'bi bi-square'" />
+                  </button>
+                  <span class="text-xs text-blue-700 self-center font-medium">เลือก {{ selectedPages.length }} ภาพ</span>
+                  <button class="icon-sm-btn text-green-600 hover:border-green-400" title="ตกลง" @click="confirmMove"><i class="bi bi-check-lg" /></button>
+                  <button class="icon-sm-btn text-red-500 hover:border-red-400" title="ยกเลิก" @click="cancelMoveMode"><i class="bi bi-x-lg" /></button>
+                </template>
+              </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto border border-gray-200 rounded-lg min-h-0 p-2">
+              <div v-if="!scanStore.selectedTreatNo || !scanStore.selectedFormCode"
+                class="empty-state py-4">
+                <i class="bi bi-images text-xl block mb-1" />
+                <p class="text-xs">เลือกแฟ้มและฟอร์มเพื่อดูรูปภาพ</p>
+              </div>
+              <div v-else-if="loadingImages" class="flex justify-center py-4">
+                <span class="loading-spinner" />
+              </div>
+              <div v-else-if="imagePages.length === 0" class="empty-state py-4">
+                <i class="bi bi-image text-xl block mb-1" />
+                <p class="text-xs">ไม่มีรูปภาพในฟอร์มนี้</p>
+              </div>
+              <div v-else class="grid grid-cols-3 gap-2">
+                <div
+                  v-for="p in imagePages"
+                  :key="p.pageNo"
+                  class="border rounded-lg overflow-hidden cursor-pointer transition-all relative"
+                  :class="moveMode
+                    ? selectedPages.includes(p.pageNo)
+                      ? 'border-sky-400 ring-2 ring-sky-300'
+                      : 'border-gray-200 hover:border-sky-300'
+                    : 'border-gray-200 hover:border-sky-400 hover:shadow-sm'"
+                  @click="onThumbClick(p)"
+                >
+                  <img
+                    :src="`/api/image/${p.pageNo}?ext=${p.extension||'jpg'}&thumb=1`"
+                    loading="lazy" decoding="async"
+                    class="w-full h-20 object-cover bg-gray-100"
+                    :alt="`หน้า ${p.page}`"
+                    @error="(e:any) => e.target.src=''"
+                  />
+                  <!-- select order badge -->
+                  <div v-if="moveMode && selectedPages.includes(p.pageNo)"
+                    class="absolute top-1 left-1 bg-sky-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow">
+                    {{ selectedPages.indexOf(p.pageNo) + 1 }}
+                  </div>
+                  <div class="px-1 py-0.5 text-[10px] text-gray-400 text-center">หน้า {{ p.page }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
   </div>
 
   <!-- Image viewer overlay -->
@@ -475,6 +551,29 @@ const viewRotate = ref(0)
 const previewUrls = computed(() =>
   scanStore.selectedFiles.map(f => f.type.startsWith('image/') ? URL.createObjectURL(f) : '')
 )
+
+// อายุ — คำนวณจาก BIRTHDATE เหมือน store เดิม
+const patientAge = computed(() => {
+  const bd = patientStore.selectedPatient?.BIRTHDATE
+  if (!bd || bd.length < 4) return '-'
+  const year = parseInt(bd.substring(0, 4))
+  if (isNaN(year)) return '-'
+  return `${new Date().getFullYear() - year} ปี`
+})
+
+// ไอคอนเพศจาก SEX (รองรับ M/F หรือ ช/ญ — ถ้าไม่ตรงไม่แสดง)
+const sexIcon = computed(() => {
+  const s = (patientStore.selectedPatient?.SEX || '').trim().toUpperCase()
+  if (s === 'M' || s === '1' || s === 'ช') return { cls: 'bi-gender-male text-blue-500', label: 'ชาย' }
+  if (s === 'F' || s === '2' || s === 'ญ') return { cls: 'bi-gender-female text-pink-500', label: 'หญิง' }
+  return null
+})
+
+// Visit ล่าสุด = INDATE ของแถวแรก (treatments เรียงใหม่สุดอยู่บน)
+const lastVisitDate = computed(() => {
+  const first = scanStore.treatments[0]
+  return first ? formatDate(first.INDATE) : ''
+})
 
 // Sort forms by cnt desc when treatno selected
 const sortedForms = computed(() => {
@@ -814,6 +913,31 @@ async function upload() {
 </script>
 
 <style scoped>
+.scan-now-btn {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 1rem 0.75rem;
+  border: none;
+  border-radius: 0.75rem;
+  color: #fff;
+  cursor: pointer;
+  background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 55%, #2563eb 100%);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.28);
+  transition: filter 0.15s, box-shadow 0.15s, transform 0.05s;
+}
+.scan-now-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.34);
+}
+.scan-now-btn:active:not(:disabled) { transform: translateY(1px); }
+.scan-now-btn:disabled { opacity: 0.7; cursor: wait; }
+.scan-now-title { font-size: 1.15rem; font-weight: 700; line-height: 1.2; }
+.scan-now-sub { font-size: 0.75rem; color: rgba(255, 255, 255, 0.85); }
+
 .icon-sm-btn {
   width: 1.5rem; height: 1.5rem;
   display: flex; align-items: center; justify-content: center;
