@@ -138,6 +138,80 @@
     </Transition>
   </Teleport>
 
+  <!-- PrintNeed request modal (ขอพิมพ์เอกสาร — auth != 3) -->
+  <Teleport to="body">
+    <Transition name="fade">
+      <div v-if="showPrintNeedModal" class="fixed inset-0 z-[9600] flex items-center justify-center">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" @click="showPrintNeedModal = false" />
+        <div class="relative rounded-xl shadow-2xl w-[460px] overflow-hidden"
+          :class="printNeedExists ? 'bg-red-600' : 'bg-white'">
+
+          <!-- กรณีมี request ค้างแล้ว → แจ้งข้อความ (พื้นแดง ฟ้อนขาว) -->
+          <template v-if="printNeedExists">
+            <div class="flex items-center gap-2 px-5 py-3 border-b border-red-500">
+              <i class="bi bi-printer text-white" />
+              <span class="font-semibold text-sm text-white">ระบบขอพิมพ์เอกสาร</span>
+            </div>
+            <div class="px-5 py-6 text-center">
+              <i class="bi bi-exclamation-circle-fill text-white text-4xl block mb-3" />
+              <p class="text-sm text-white font-semibold">มีการ request ขอพิมพ์เอกสารแล้ว</p>
+              <p class="text-sm text-white/90 mt-1">กรุณาติดต่อ Admin</p>
+            </div>
+            <div class="px-5 py-3 border-t border-red-500 flex justify-end">
+              <button class="px-4 py-1.5 text-sm rounded-lg bg-white/20 text-white hover:bg-white/30 transition-colors"
+                @click="showPrintNeedModal = false">ปิด</button>
+            </div>
+          </template>
+
+          <!-- กรณียังไม่เคย request → ฟอร์มขอพิมพ์ -->
+          <template v-else>
+            <div class="flex items-center gap-2 px-5 py-3 bg-[#1a4f7a]">
+              <i class="bi bi-printer text-white" />
+              <span class="font-semibold text-sm text-white">ระบบขอพิมพ์เอกสาร</span>
+            </div>
+            <div class="px-5 py-4 space-y-3">
+              <div class="grid grid-cols-3 gap-2">
+                <div>
+                  <label class="form-label">HN</label>
+                  <input :value="formatHnDisplay(printNeedForm.patId)" class="form-input bg-gray-50 text-xs" disabled />
+                </div>
+                <div>
+                  <label class="form-label">ผู้ขอ</label>
+                  <input :value="printNeedForm.userId" class="form-input bg-gray-50 text-xs" disabled />
+                </div>
+                <div>
+                  <label class="form-label">วันที่</label>
+                  <input :value="printNeedForm.cDate" type="date" class="form-input bg-gray-50 text-xs" disabled />
+                </div>
+              </div>
+              <div>
+                <label class="form-label">เหตุผลในการพิมพ์ <span class="text-red-500">*</span></label>
+                <select v-model="printNeedForm.printCode" class="form-select text-sm">
+                  <option value="">-- เลือกเหตุผล --</option>
+                  <option v-for="r in printReasons" :key="r.DtlCod" :value="r.DtlCod">{{ r.DtlCodNam }}</option>
+                </select>
+              </div>
+              <div>
+                <label class="form-label">คลินิก</label>
+                <select v-model="printNeedForm.needClin" class="form-select text-sm">
+                  <option value="">-- เลือกคลินิก --</option>
+                  <option v-for="c in printClinics" :key="c.CLINCODE" :value="c.CLINCODE">{{ c.NAME }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="px-5 py-3 border-t border-gray-100 flex gap-2 justify-end">
+              <button class="btn-outline" @click="showPrintNeedModal = false">ยกเลิก</button>
+              <button class="btn-primary gap-1" :disabled="printNeedSaving || !printNeedForm.printCode" @click="savePrintNeed">
+                <span v-if="printNeedSaving" class="loading-spinner" />
+                <i v-else class="bi bi-check-lg" /> บันทึก
+              </button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
   <div class="flex flex-col h-[calc(100vh-115px)]">
     <div class="flex gap-3 flex-1 min-h-0 h-full">
 
@@ -361,6 +435,21 @@ const vRotate    = ref(0)
 // Watermark config (โหลดตอน mount)
 const wmEnabled = ref(false)
 const wmOpacity = ref(0.2)
+
+// PrintNeed (request ขอพิมพ์ — สำหรับ auth != 3)
+const showPrintNeedModal = ref(false)
+const printNeedExists = ref(false)      // true = มี request ค้างแล้ว → แสดงข้อความแจ้ง
+const printNeedSaving = ref(false)
+const printReasons = ref<any[]>([])
+const printClinics = ref<any[]>([])
+const printNeedForm = ref({
+  pageNo: 0,
+  patId: '',
+  userId: '',
+  cDate: '',          // yyyy-mm-dd แสดงใน date picker
+  printCode: '',
+  needClin: '',
+})
 const viewerSrc  = computed(() => {
   const p = viewPages.value[viewerIdx.value]
   // fmt=jpg → backend แปลง tiff เป็น jpeg เต็มขนาด (Chrome/Edge แสดง tiff ตรงๆ ไม่ได้)
@@ -631,9 +720,37 @@ function navViewer(dir: number) {
   if (next >= 0 && next < viewPages.value.length) { viewerIdx.value = next; vZoom.value = 1; vRotate.value = 0 }
 }
 
-// พิมพ์เฉพาะรูปที่กำลังดูอยู่ — เปิดหน้าต่างใหม่ใส่รูปเดียว แล้วสั่งพิมพ์
-// ถ้า config เปิด watermark → วาง watermark ทับกลางรูปแบบโปร่งใส (opacity จาก config)
-function printCurrentImage() {
+// กดปุ่ม print: เช็ค auth ก่อน
+//   auth='3' → พิมพ์ได้เลย
+//   auth!='3' → เช็คว่ามี request PRINTNEEDT ค้างไหม
+//      มีแล้ว → modal แจ้ง "ขอ print แล้ว ติดต่อ admin"
+//      ยังไม่มี → modal request print need
+async function printCurrentImage() {
+  const p = viewPages.value[viewerIdx.value]
+  if (!p) return
+  const pageNo = p.PAGENO
+  try {
+    const res = await api.get('/printneed/check', { params: { pageNo } })
+    const auth = res.data.auth
+    if (auth === '3') {
+      doPrint()                      // พิมพ์ได้เลย
+      return
+    }
+    // auth != 3 → เช็ค request
+    if (res.data.hasRequest) {
+      printNeedExists.value = true   // มี request แล้ว
+      showPrintNeedModal.value = true
+      return
+    }
+    // ยังไม่มี → เปิด modal request print need
+    await openPrintNeedModal(pageNo, res.data.patId || '')
+  } catch (e: any) {
+    await dlgAlert(e.response?.data?.error || e.message, { type: 'error' })
+  }
+}
+
+// พิมพ์รูปจริง — เปิดหน้าต่างใหม่ใส่รูปเดียว (+ watermark ถ้าเปิด) แล้วสั่งพิมพ์
+function doPrint() {
   const src = viewerSrc.value
   if (!src) return
   const win = window.open('', '_blank')
@@ -643,7 +760,6 @@ function printCurrentImage() {
     ? `<img class="wm" src="/api/watermark/image" style="opacity:${wmOpacity.value}" />`
     : ''
 
-  // รอให้ทุกรูป (เอกสาร + watermark) โหลดเสร็จก่อนค่อยสั่งพิมพ์ — ใช้ตัวนับ
   win.document.write(`
     <html><head><title>Print</title>
     <style>
@@ -670,6 +786,49 @@ function printCurrentImage() {
     <\/script>
     </body></html>`)
   win.document.close()
+}
+
+// เปิด modal request print need
+async function openPrintNeedModal(pageNo: number, patId: string) {
+  printNeedExists.value = false
+  printNeedForm.value = {
+    pageNo,
+    patId,
+    userId: authStore.user?.userId || '',
+    cDate: todayIso(),
+    printCode: '',
+    needClin: '',
+  }
+  // โหลด dropdown ครั้งแรก (cache ไว้)
+  if (printReasons.value.length === 0) {
+    try { printReasons.value = (await api.get('/printneed/reasons')).data } catch (e) { console.error(e) }
+  }
+  if (printClinics.value.length === 0) {
+    try { printClinics.value = (await api.get('/printneed/clinics')).data } catch (e) { console.error(e) }
+  }
+  showPrintNeedModal.value = true
+}
+
+async function savePrintNeed() {
+  if (!printNeedForm.value.printCode) { await dlgAlert('กรุณาเลือกเหตุผล', { type: 'warning' }); return }
+  printNeedSaving.value = true
+  try {
+    await api.post('/printneed/register', {
+      pageNo: String(printNeedForm.value.pageNo),
+      printCode: printNeedForm.value.printCode,
+      needClin: printNeedForm.value.needClin,
+    })
+    showPrintNeedModal.value = false
+    await dlgAlert('บันทึกคำขอพิมพ์เรียบร้อย รอผู้ดูแลระบบดำเนินการ', { type: 'success' })
+  } catch (e: any) {
+    if (e.response?.status === 409) {
+      printNeedExists.value = true   // มี request แล้ว → สลับเป็นข้อความแจ้ง
+    } else {
+      await dlgAlert(e.response?.data?.error || e.message, { type: 'error' })
+    }
+  } finally {
+    printNeedSaving.value = false
+  }
 }
 
 function onKeydown(e: KeyboardEvent) {

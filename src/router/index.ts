@@ -10,6 +10,7 @@ const router = createRouter({
     { path: '/scan/security', name: 'scan-security', component: () => import('@/views/ScanSecurityView.vue'),  meta: { requireAuth: true, requireAdmin: true } },
     { path: '/scan/rent',     name: 'scan-rent',     component: () => import('@/views/ScanRentView.vue'),      meta: { requireAuth: true, requireAdmin: true } },
     { path: '/scan/ocrreturn', name: 'scan-ocrreturn', component: () => import('@/views/ScanOcrReturnView.vue'), meta: { requireAuth: true, requireAdmin: true } },
+    { path: '/scan/printneed', name: 'scan-printneed', component: () => import('@/views/ScanPrintNeedView.vue'), meta: { requireAuth: true, requireAdmin: true } },
     { path: '/viewer',        name: 'viewer',        component: () => import('@/views/ViewerView.vue'),        meta: { requireAuth: true } },
     { path: '/viewer/print',  name: 'viewer-print',  component: () => import('@/views/ViewerPrintView.vue'),   meta: { requireAuth: true } },
   ]

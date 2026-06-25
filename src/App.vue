@@ -104,6 +104,7 @@ const scanTabs = [
   { to: '/scan/security',  icon: 'bi-shield-lock',   label: 'Security',   adminOnly: true },
   { to: '/scan/rent',      icon: 'bi-box-arrow-up',  label: 'Rent',       adminOnly: true },
   { to: '/scan/ocrreturn', icon: 'bi-arrow-return-left', label: 'OCR Return', adminOnly: true },
+  { to: '/scan/printneed', icon: 'bi-printer', label: 'Print need', adminOnly: true },
 ]
 const viewerTabs = [
   { to: '/viewer',       icon: 'bi-eye',     label: 'ดูเอกสาร',  adminOnly: false },
