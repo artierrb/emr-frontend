@@ -33,30 +33,33 @@
         <!-- Clinic -->
         <div>
           <label class="form-label">คลินิก</label>
-          <select v-model="fNeedClin" class="form-select text-xs py-1.5 w-40">
-            <option value="ALL">ทั้งหมด</option>
-            <option v-for="c in clinics" :key="c.CLINCODE" :value="c.CLINCODE">{{ c.NAME }}</option>
-          </select>
+          <div class="w-40">
+            <EMRCombobox v-model="fNeedClin" :options="clinicOptions" :clearable="false"
+              leading-icon="bi bi-hospital" placeholder="ทั้งหมด" />
+          </div>
         </div>
 
         <!-- Print status -->
         <div>
           <label class="form-label">สถานะพิมพ์</label>
-          <select v-model="fPrinted" class="form-select text-xs py-1.5 w-28">
-            <option value="ALL">ALL</option>
-            <option value="N">ยังไม่พิมพ์</option>
-            <option value="Y">พิมพ์แล้ว</option>
-          </select>
+          <div class="w-32">
+            <EMRCombobox v-model="fPrinted" :options="printedOptions" :clearable="false"
+              leading-icon="bi bi-printer" placeholder="ALL" />
+          </div>
         </div>
 
         <!-- Date range (CDATE) -->
         <div>
           <label class="form-label">วันที่ขอ (จาก)</label>
-          <input v-model="fDateFrom" type="date" class="form-input text-xs py-1.5" />
+          <div class="w-40">
+            <EMRDatePicker v-model="fDateFrom" :clearable="false" />
+          </div>
         </div>
         <div>
           <label class="form-label">ถึง</label>
-          <input v-model="fDateTo" type="date" class="form-input text-xs py-1.5" />
+          <div class="w-40">
+            <EMRDatePicker v-model="fDateTo" :clearable="false" />
+          </div>
         </div>
 
         <button class="btn-primary gap-1 py-1.5" :disabled="loading" @click="onSearch">
@@ -147,7 +150,7 @@
         </div>
       </div>
 
-      <!-- Preview zone (ครึ่งขวา) -->
+      <!-- Preview zone (ครึ่งขวา) — การ์ด thumbnail สไตล์ ScanView -->
       <div class="card flex flex-col flex-1 min-h-0" style="flex-basis:50%;">
         <div class="card-header py-2">
           <i class="bi bi-image" /> ตัวอย่างเอกสาร
@@ -155,15 +158,31 @@
             HN {{ formatHn(selected.PATID) }} · {{ selected.PATNAME }}
           </span>
         </div>
-        <div class="flex-1 overflow-auto bg-gray-100 flex items-center justify-center p-3 min-h-0">
-          <div v-if="!selected" class="empty-state">
-            <i class="bi bi-arrow-left-circle text-3xl block mb-2" />
-            <p class="text-sm">เลือกรายการเพื่อดูตัวอย่าง</p>
+        <div class="flex-1 overflow-auto bg-gray-100 p-3 min-h-0">
+          <div v-if="!selected" class="h-full flex items-center justify-center">
+            <div class="empty-state">
+              <i class="bi bi-arrow-left-circle text-3xl block mb-2" />
+              <p class="text-sm">เลือกรายการเพื่อดูตัวอย่าง</p>
+            </div>
           </div>
-          <img v-else :src="previewSrc"
-            class="max-w-full max-h-full object-contain bg-white shadow"
-            :alt="`PAGENO ${selected.PAGENO}`"
-            @error="(e:any) => e.target.style.display='none'" />
+          <div v-else class="h-full flex items-start justify-center">
+            <!-- การ์ดแบบ ScanView: กรอบ rounded, พื้น slate-50, aspect-[3/4], hover scale/shadow -->
+            <div
+              class="group border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm
+                     hover:border-sky-400 hover:shadow-md transition-all w-full max-w-[420px]"
+            >
+              <div class="aspect-[3/4] bg-slate-50 flex items-center justify-center overflow-hidden">
+                <img :src="previewSrc"
+                  loading="lazy" decoding="async"
+                  class="max-w-full max-h-full object-contain transition-transform duration-200 group-hover:scale-[1.03]"
+                  :alt="`PAGENO ${selected.PAGENO}`"
+                  @error="(e:any) => e.target.style.display='none'" />
+              </div>
+              <div class="px-2 py-1 text-[11px] text-gray-500 text-center border-t border-gray-100 bg-white">
+                PAGENO {{ selected.PAGENO }}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -176,6 +195,8 @@ import { ref, computed, onMounted } from 'vue'
 import { usePatientStore } from '@/stores/patient'
 import api from '@/services/api'
 import { useDialog } from '@/composables/useDialog'
+import EMRCombobox, { type ComboOption } from '@/components/common/EMRCombobox.vue'
+import EMRDatePicker from '@/components/common/EMRDatePicker.vue'
 
 const patientStore = usePatientStore()
 const { alert: dlgAlert, confirm: dlgConfirm } = useDialog()
@@ -188,8 +209,8 @@ const fHnYear   = ref('')
 const fPatName  = ref('')
 const fNeedClin = ref('ALL')
 const fPrinted  = ref('ALL')
-const fDateFrom = ref(todayIso())
-const fDateTo   = ref(todayIso())
+const fDateFrom = ref(todayDb())   // EMRDatePicker: YYYYMMDD
+const fDateTo   = ref(todayDb())
 
 const clinics  = ref<any[]>([])
 const rows     = ref<any[]>([])
@@ -201,8 +222,21 @@ const acting   = ref<string>('')   // '' | 'confirm' | 'cancel'
 const wmEnabled = ref(false)
 const wmOpacity = ref(0.2)
 
-function todayIso(): string {
-  return new Date().toISOString().substring(0, 10)
+// ── static options (EMRCombobox) ──
+const clinicOptions = computed<ComboOption[]>(() => [
+  { value: 'ALL', label: 'ทั้งหมด' },
+  ...clinics.value.map(c => ({ value: c.CLINCODE, label: c.NAME, code: c.CLINCODE })),
+])
+const printedOptions: ComboOption[] = [
+  { value: 'ALL', label: 'ALL' },
+  { value: 'N',   label: 'ยังไม่พิมพ์' },
+  { value: 'Y',   label: 'พิมพ์แล้ว' },
+]
+
+// วันนี้แบบ DB format (YYYYMMDD ค.ศ.) — ตรงกับ v-model ของ EMRDatePicker
+function todayDb(): string {
+  const d = new Date()
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
 }
 
 function computePatId(): string {
@@ -256,14 +290,16 @@ async function onSearch() {
   loading.value = true
   selected.value = null
   try {
+    // EMRDatePicker เก็บ YYYYMMDD — CDATE เก็บ yyyyMMdd (varchar) และ backend .replace('-','')
+    // ให้เองอยู่แล้ว จึงส่ง YYYYMMDD ตรงได้ (replace เป็น no-op)
     const res = await api.get('/printneed-admin/search', {
       params: {
         patId: computePatId() || undefined,
         patName: fPatName.value.trim() || undefined,
         dateFrom: fDateFrom.value || undefined,
         dateTo: fDateTo.value || undefined,
-        needClin: fNeedClin.value,
-        printed: fPrinted.value,
+        needClin: fNeedClin.value || 'ALL',
+        printed: fPrinted.value || 'ALL',
       }
     })
     rows.value = res.data
@@ -280,8 +316,8 @@ async function onReset() {
   fPatName.value = ''
   fNeedClin.value = 'ALL'
   fPrinted.value = 'ALL'
-  fDateFrom.value = todayIso()
-  fDateTo.value = todayIso()
+  fDateFrom.value = todayDb()
+  fDateTo.value = todayDb()
   selected.value = null
   await onSearch()
 }
@@ -398,7 +434,7 @@ function exportExcel() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `printneed_${todayIso()}.xls`
+  a.download = `printneed_${todayDb()}.xls`
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -416,9 +452,9 @@ function printList() {
       h2 { font-size: 16px; }
       table { width: 100%; border-collapse: collapse; font-size: 12px; }
       th, td { border: 1px solid #999; padding: 4px 8px; text-align: left; }
-      th { background: #1a4f7a; color: white; }
+      th { background: #2563a8; color: white; }
     </style></head><body>
-    <h2>รายการคำขอพิมพ์เอกสาร (${rows.value.length} รายการ) — ${todayIso()}</h2>
+    <h2>รายการคำขอพิมพ์เอกสาร (${rows.value.length} รายการ) — ${todayDb()}</h2>
     <table><thead><tr>${headers.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
     <tbody>${tableRows}</tbody></table>
     </body></html>`)
@@ -441,7 +477,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.pn-th { background: #1a4f7a; color: white; padding: 0.45rem 0.6rem; text-align: left; font-size: 0.7rem; font-weight: 500; white-space: nowrap; }
+.pn-th { background: #2563a8; color: white; padding: 0.45rem 0.6rem; text-align: left; font-size: 0.7rem; font-weight: 500; white-space: nowrap; }
 .pn-td { padding: 0.4rem 0.6rem; font-size: 0.72rem; color: #374151; }
 .badge-green { background: #dcfce7; color: #15803d; padding: 0.1rem 0.5rem; border-radius: 0.75rem; font-weight: 600; }
 .badge-amber { background: #fef3c7; color: #b45309; padding: 0.1rem 0.5rem; border-radius: 0.75rem; font-weight: 600; }

@@ -10,7 +10,7 @@
     <div class="space-y-4">
       <div>
         <label class="form-label">HN <span class="text-red-500">*</span></label>
-        <HnInputer ref="hnInputer" :is-sep="patientStore.hnConfig.hnSep === 'Y'" />
+        <HnInputer ref="hnInputer" :is-sep="patientStore.hnConfig.hnSep === 'Y'" :searchable="false" />
       </div>
       <div>
         <label class="form-label">ชื่อ-สกุล <span class="text-red-500">*</span></label>
@@ -18,11 +18,14 @@
       </div>
       <div>
         <label class="form-label">เพศ</label>
-        <select v-model="form.sex" class="form-select w-full">
-          <option value="">-- เลือก --</option>
-          <option value="M">M - Male</option>
-          <option value="F">F - Female</option>
-        </select>
+        <EMRCombobox
+          v-model="form.sex"
+          :options="sexOptions"
+          :selected-label="sexSelectedLabel"
+          placeholder="-- เลือก --"
+          leading-icon="bi bi-gender-ambiguous"
+          clearable
+        />
       </div>
       <div>
         <label class="form-label">เลขบัตรประชาชน</label>
@@ -30,7 +33,7 @@
       </div>
       <div>
         <label class="form-label">วันเกิด</label>
-        <input v-model="form.birthDate" type="date" class="form-input w-full" />
+        <EMRDatePicker v-model="form.birthDate" placeholder="วว/ดด/ปปปป" />
       </div>
     </div>
 
@@ -44,13 +47,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useDialog } from '@/composables/useDialog'
 const { alert: dlgAlert, confirm: dlgConfirm } = useDialog()
 import { usePatientStore } from '@/stores/patient'
 import { patientApi } from '@/services/api'
 import BaseModal from './BaseModal.vue'
 import HnInputer from './HnInputer.vue'
+import EMRDatePicker from '@/components/common/EMRDatePicker.vue'
+import EMRCombobox from '@/components/common/EMRCombobox.vue'
+import type { ComboOption } from '@/components/common/EMRCombobox.vue'
 
 defineProps<{ modelValue: boolean }>()
 const emit = defineEmits<{
@@ -63,6 +69,15 @@ const hnInputer = ref<InstanceType<typeof HnInputer>>()
 const saving = ref(false)
 const form = reactive({ name: '', sex: '', jumiNno: '', birthDate: '' })
 
+// เพศ → EMRCombobox (static)
+const sexOptions: ComboOption[] = [
+  { value: 'M', label: 'M - Male' },
+  { value: 'F', label: 'F - Female' },
+]
+const sexSelectedLabel = computed(() =>
+  sexOptions.find(o => o.value === form.sex)?.label || ''
+)
+
 async function save() {
   const hn = hnInputer.value?.hnValue?.trim()
   if (!hn) { await dlgAlert('กรุณากรอก HN', { type: 'warning' }); return }
@@ -70,7 +85,8 @@ async function save() {
 
   saving.value = true
   try {
-    const birthDate = form.birthDate ? form.birthDate.replace(/-/g, '') : ''
+    // EMRDatePicker เก็บค่าเป็น yyyyMMdd อยู่แล้ว ส่งตรงได้เลย
+    const birthDate = form.birthDate || ''
     await patientApi.insert({
       patId: hn,  // HnInputer returns 8-char padded value
       name: form.name,

@@ -14,7 +14,8 @@
 
         <!-- ข้อมูลผู้ป่วย -->
         <template v-if="patientStore.selectedPatient">
-          <div class="flex-1 min-w-0">
+          <!-- ซ้าย: ตัวตนผู้ป่วย -->
+          <div class="min-w-0 flex-shrink-0">
             <div class="flex items-center gap-2 flex-wrap">
               <span class="bg-blue-100 text-blue-700 text-xs font-semibold px-2 py-0.5 rounded-full">
                 ผู้ป่วยปัจจุบัน
@@ -27,9 +28,7 @@
             <div class="flex items-center gap-x-4 gap-y-1 mt-1.5 text-sm text-slate-600 flex-wrap">
               <span>
                 <span class="text-slate-400">HN</span>
-                <strong class="ml-1 text-slate-800" style="font-variant-numeric: tabular-nums;">
-                  {{ patientStore.selectedPatient.PATID.trim() }}
-                </strong>
+                <strong class="ml-1 text-slate-800" style="font-variant-numeric: tabular-nums;">{{ formatHn(patientStore.selectedPatient.PATID) }}</strong>
               </span>
               <span class="text-slate-300">|</span>
               <span>
@@ -39,10 +38,42 @@
               <span class="text-slate-300">|</span>
               <span>
                 <span class="text-slate-400">เลขสิทธิ</span>
-                <strong class="ml-1 text-slate-800" style="font-variant-numeric: tabular-nums;">
-                  {{ patientStore.selectedPatient.JUMINNO?.trim() || '-' }}
-                </strong>
+                <strong class="ml-1 text-slate-800" style="font-variant-numeric: tabular-nums;">{{ patientStore.selectedPatient.JUMINNO?.trim() || '-' }}</strong>
               </span>
+            </div>
+          </div>
+
+          <!-- กลาง: ข้อมูลแฟ้มที่เลือก เติมในช่องว่าง คั่นด้วยเส้นแนวตั้ง -->
+          <div class="flex-1 min-w-0 self-stretch flex items-center px-4 border-l border-slate-100">
+            <div v-if="selectedTreatInfo" class="flex items-center gap-x-5 gap-y-1 flex-wrap text-sm w-full">
+              <div class="flex flex-col">
+                <span class="text-xs text-slate-400 mb-0.5">ประเภท</span>
+                <span
+                  class="text-xs font-semibold px-2 py-0.5 rounded-full self-start"
+                  :class="selectedTreatInfo.isIpd
+                    ? 'bg-indigo-100 text-indigo-700'
+                    : 'bg-emerald-100 text-emerald-700'"
+                >{{ selectedTreatInfo.typeLabel }}</span>
+              </div>
+              <div class="flex flex-col">
+                <span class="text-xs text-slate-400 mb-0.5">{{ selectedTreatInfo.visitLabel }}</span>
+                <strong class="text-slate-800 leading-tight" style="font-variant-numeric: tabular-nums;">{{ selectedTreatInfo.visitNo || '-' }}</strong>
+              </div>
+              <div class="flex flex-col">
+                <span class="text-xs text-slate-400 mb-0.5">วันที่</span>
+                <strong class="text-slate-800 leading-tight whitespace-nowrap" style="font-variant-numeric: tabular-nums;">{{ selectedTreatInfo.date || '-' }}</strong>
+              </div>
+              <div class="flex flex-col min-w-0">
+                <span class="text-xs text-slate-400 mb-0.5">แพทย์</span>
+                <strong class="text-slate-800 leading-tight truncate" :title="selectedTreatInfo.doctor">{{ selectedTreatInfo.doctor || '-' }}</strong>
+              </div>
+              <div class="flex flex-col min-w-0">
+                <span class="text-xs text-slate-400 mb-0.5">แผนก</span>
+                <strong class="text-slate-800 leading-tight truncate" :title="selectedTreatInfo.dept">{{ selectedTreatInfo.dept || '-' }}</strong>
+              </div>
+            </div>
+            <div v-else class="text-sm text-slate-300 flex items-center gap-2">
+              <i class="bi bi-folder2-open" /> เลือกแฟ้มผู้ป่วยเพื่อดูรายละเอียด
             </div>
           </div>
 
@@ -80,16 +111,15 @@
             <select class="form-select text-sm" disabled>
               <option>-- Profile (coming soon) --</option>
             </select>
-            <button
-              class="scan-now-btn"
-              :disabled="connectingScanner"
+            <EMRButton
+              stacked
+              block
+              icon="bi bi-scanner"
+              title="Scan Now"
+              sub="เริ่มสแกนเอกสาร"
+              :loading="connectingScanner"
               @click="connectScanner"
-            >
-              <span v-if="connectingScanner" class="loading-spinner !w-7 !h-7 !border-white/40 !border-t-white" />
-              <i v-else class="bi bi-scanner text-3xl" />
-              <span class="scan-now-title">Scan Now</span>
-              <span class="scan-now-sub">เริ่มสแกนเอกสาร</span>
-            </button>
+            />
             <p class="text-[11px] text-gray-400 text-center">เปิด EMRScan.exe พร้อม login อัตโนมัติ</p>
           </div>
         </div>
@@ -98,7 +128,7 @@
         <div class="card flex-1 flex flex-col min-h-0">
           <div class="card-header">
             <i class="bi bi-folder2-open" /> เลือกไฟล์
-            <span class="ml-auto text-xs text-gray-400 font-normal">JPG PNG TIF PDF</span>
+            <span class="ml-auto text-xs text-gray-400 font-normal">JPG PNG TIF</span>
           </div>
           <div class="p-3 flex flex-col flex-1 min-h-0">
             <div
@@ -111,19 +141,20 @@
             >
               <i class="bi bi-cloud-arrow-up text-xl text-gray-400 block mb-1" />
               <p class="text-xs text-gray-500">
-                <strong class="text-[#1a4f7a]">คลิก</strong> หรือลากมาวาง
+                <strong class="text-[#2563a8]">คลิก</strong> หรือลากมาวาง
               </p>
             </div>
-            <input ref="fileInput" type="file" multiple accept=".jpg,.jpeg,.png,.tif,.tiff,.pdf"
+            <input ref="fileInput" type="file" multiple accept=".jpg,.jpeg,.png,.tif,.tiff"
               class="hidden" @change="onFileSelect" />
 
             <div class="flex-1 overflow-y-auto mt-2 min-h-0">
               <div v-if="scanStore.selectedFiles.length > 0" class="grid grid-cols-2 gap-1.5">
                 <div v-for="(f, i) in scanStore.selectedFiles" :key="i"
                   class="border border-gray-200 rounded-lg overflow-hidden relative bg-white">
-                  <img v-if="f.type.startsWith('image/')" :src="previewUrls[i]" class="w-full h-16 object-cover" />
-                  <div v-else class="w-full h-16 flex items-center justify-center bg-red-50">
-                    <i class="bi bi-file-pdf text-xl text-red-500" />
+                  <img v-if="isPreviewable(f)" :src="previewUrls[i]" class="w-full h-16 object-cover" />
+                  <div v-else class="w-full h-16 flex flex-col items-center justify-center bg-slate-50 gap-0.5">
+                    <i class="bi bi-file-earmark-image text-lg text-slate-400" />
+                    <span class="text-[9px] text-slate-400 uppercase">TIFF</span>
                   </div>
                   <div class="px-1 py-0.5 text-[10px] text-gray-400 truncate">{{ i + 1 }}. {{ f.name }}</div>
                   <button
@@ -143,7 +174,7 @@
             <div class="flex-shrink-0 mt-2 pt-2 border-t border-gray-100 space-y-2">
               <div class="flex gap-2">
                 <button
-                  class="flex-1 h-10 rounded-lg border-2 border-[#1a4f7a] text-[#1a4f7a] flex items-center justify-center gap-1.5 text-sm font-bold cursor-not-allowed opacity-60"
+                  class="flex-1 h-10 rounded-lg border-2 border-[#2563a8] text-[#2563a8] flex items-center justify-center gap-1.5 text-sm font-bold cursor-not-allowed opacity-60"
                   disabled title="Scanner integration อยู่ระหว่างพัฒนา">
                   <i class="bi bi-scanner text-lg" /> SCAN
                 </button>
@@ -292,20 +323,19 @@
                     <th class="treat-th text-center">C2</th>
                     <th class="treat-th text-center">Inco</th>
                     <th class="treat-th text-right">Cnt</th>
-                    <th class="treat-th">DeptCode</th>
                     <th class="treat-th">DrCode</th>
                     <th class="treat-th text-right">TreatNo</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="scanStore.treatments.length === 0">
-                    <td colspan="12" class="text-center py-4 text-gray-400">
+                    <td colspan="11" class="text-center py-4 text-gray-400">
                       {{ patientStore.selectedPatient ? 'ไม่พบข้อมูล' : 'เลือกผู้ป่วยก่อน' }}
                     </td>
                   </tr>
                   <tr v-for="t in scanStore.treatments" :key="t.TREATNO"
-                    class="cursor-pointer hover:bg-blue-50 transition-colors"
-                    :class="scanStore.selectedTreatNo === t.TREATNO ? 'bg-blue-100' : ''"
+                    class="treat-row cursor-pointer"
+                    :class="scanStore.selectedTreatNo === t.TREATNO ? 'is-selected' : ''"
                     @click="scanStore.selectTreatment(t)">
                     <td class="treat-td font-bold" :class="t.CLASS === 'I' ? 'text-blue-700' : 'text-green-700'">
                       {{ t.CLASS }}
@@ -329,10 +359,9 @@
                         class="cursor-pointer"
                         @change="scanStore.toggleCheck(t.TREATNO, 3, t.CHECKED3)" />
                     </td>
-                    <td class="treat-td text-right font-mono">{{ t.CNT }}</td>
-                    <td class="treat-td text-gray-400">{{ t.CLINCODE }}</td>
+                    <td class="treat-td text-right font-mono" style="font-variant-numeric: tabular-nums;">{{ t.CNT }}</td>
                     <td class="treat-td text-gray-400">{{ deptCodeLabel(t) }}</td>
-                    <td class="treat-td text-right font-mono text-gray-500">{{ t.TREATNO }}</td>
+                    <td class="treat-td text-right font-mono text-gray-500" style="font-variant-numeric: tabular-nums;">{{ t.TREATNO }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -383,31 +412,33 @@
                 <i class="bi bi-image text-xl block mb-1" />
                 <p class="text-xs">ไม่มีรูปภาพในฟอร์มนี้</p>
               </div>
-              <div v-else class="grid grid-cols-3 gap-2">
+              <div v-else class="grid grid-cols-4 gap-2">
                 <div
                   v-for="p in imagePages"
                   :key="p.pageNo"
-                  class="border rounded-lg overflow-hidden cursor-pointer transition-all relative"
+                  class="group border rounded-lg overflow-hidden cursor-pointer transition-all relative bg-white"
                   :class="moveMode
                     ? selectedPages.includes(p.pageNo)
                       ? 'border-sky-400 ring-2 ring-sky-300'
                       : 'border-gray-200 hover:border-sky-300'
-                    : 'border-gray-200 hover:border-sky-400 hover:shadow-sm'"
+                    : 'border-gray-200 hover:border-sky-400 hover:shadow-md'"
                   @click="onThumbClick(p)"
                 >
-                  <img
-                    :src="`/api/image/${p.pageNo}?ext=${p.extension||'jpg'}&thumb=1`"
-                    loading="lazy" decoding="async"
-                    class="w-full h-20 object-cover bg-gray-100"
-                    :alt="`หน้า ${p.page}`"
-                    @error="(e:any) => e.target.src=''"
-                  />
+                  <div class="aspect-[3/4] bg-slate-50 flex items-center justify-center overflow-hidden">
+                    <img
+                      :src="`/api/image/${p.pageNo}?ext=${p.extension||'jpg'}&thumb=1`"
+                      loading="lazy" decoding="async"
+                      class="max-w-full max-h-full object-contain transition-transform duration-200 group-hover:scale-[1.03]"
+                      :alt="`หน้า ${p.page}`"
+                      @error="(e:any) => e.target.src=''"
+                    />
+                  </div>
                   <!-- select order badge -->
                   <div v-if="moveMode && selectedPages.includes(p.pageNo)"
                     class="absolute top-1 left-1 bg-sky-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow">
                     {{ selectedPages.indexOf(p.pageNo) + 1 }}
                   </div>
-                  <div class="px-1 py-0.5 text-[10px] text-gray-400 text-center">หน้า {{ p.page }}</div>
+                  <div class="px-1 py-0.5 text-[10px] text-gray-500 text-center border-t border-gray-100 bg-white">หน้า {{ p.page }}</div>
                 </div>
               </div>
             </div>
@@ -524,6 +555,7 @@ import HnInputer from '@/components/common/HnInputer.vue'
 import PatientInfoBox from '@/components/common/PatientInfoBox.vue'
 import PatientSearchModal from '@/components/common/PatientSearchModal.vue'
 import TreatFormModal from '@/components/common/TreatFormModal.vue'
+import EMRButton from '@/components/common/EMRButton.vue'
 
 const patientStore = usePatientStore()
 const scanStore = useScanStore()
@@ -548,8 +580,14 @@ const viewerImage = ref<{src:string;label:string}|null>(null)
 const viewZoom = ref(1)
 const viewRotate = ref(0)
 
+// browser แสดง jpg/png ใน <img> ได้ แต่ TIFF แสดงไม่ได้ (decode ไม่ได้)
+// สร้าง preview URL เฉพาะไฟล์ที่แสดงได้จริง เพื่อไม่ให้เห็นรูปแตก
+function isPreviewable(f: File) {
+  return f.type === 'image/jpeg' || f.type === 'image/png'
+}
+
 const previewUrls = computed(() =>
-  scanStore.selectedFiles.map(f => f.type.startsWith('image/') ? URL.createObjectURL(f) : '')
+  scanStore.selectedFiles.map(f => isPreviewable(f) ? URL.createObjectURL(f) : '')
 )
 
 // อายุ — คำนวณจาก BIRTHDATE เหมือน store เดิม
@@ -598,6 +636,22 @@ function formatDate(d: string) {
   return `${d.substring(6,8)}-${d.substring(4,6)}-${d.substring(0,4)}`
 }
 
+// แสดง HN ตาม HNSEP (แสดงผลเท่านั้น — ค่าที่ส่ง SQL ยังใช้ PATID padded 8 หลัก)
+// 'Y' → ปี 2 หลัก + '-' + ส่วนที่เหลือตัด 0 นำหน้า เช่น "69000001" → "69-1"
+// 'N' → 8 หลัก trim
+function formatHn(patid?: string) {
+  const raw = patid || ''
+  if (!raw.trim()) return '-'
+  if (patientStore.hnConfig.hnSep === 'Y') {
+    // PATID เก็บเป็น 8 หลัก: ปี 2 หลัก + เว้นวรรค + เลข HN ชิดขวา เช่น "69     1"
+    const padded = raw.padEnd(8, ' ')
+    const year = padded.substring(0, 2).trim()
+    const rest = padded.substring(2).trim()
+    return `${year}-${rest}`
+  }
+  return raw.trim()
+}
+
 function deptCodeLabel(t: TreatmentFull) {
   const vn = (t.VSTNUM || '').trim()
   const an = (t.ADMNUM || '').trim()
@@ -605,6 +659,24 @@ function deptCodeLabel(t: TreatmentFull) {
   if (t.CLASS === 'I' && an) return `${t.DOCCODE}[AN:${an}]`
   return t.DOCCODE || ''
 }
+
+// ข้อมูลแฟ้มที่เลือก สำหรับแสดงบน panel ผู้ป่วยด้านบน
+const selectedTreatInfo = computed(() => {
+  const t = scanStore.selectedTreat
+  if (!t) return null
+  const isIpd = t.CLASS === 'I'
+  const vn = (t.VSTNUM || '').trim()
+  const an = (t.ADMNUM || '').trim()
+  return {
+    isIpd,
+    typeLabel: isIpd ? 'IPD' : 'OPD',
+    visitLabel: isIpd ? 'AN' : 'VN',
+    visitNo: isIpd ? an : vn,
+    date: formatDate(t.INDATE),
+    doctor: (t.DOCNAME || '').trim(),
+    dept: (t.CLINNAME || '').trim(),
+  }
+})
 
 onMounted(async () => { await Promise.all([scanStore.loadPrgMode(), scanStore.loadFormGroups()]) })
 
@@ -699,14 +771,90 @@ function clearPatient() {
   resetExpand()
 }
 
+// นามสกุลที่อนุญาต — lock เฉพาะภาพหน้าเดียวที่ backend เซฟได้ปลอดภัย
+const ALLOWED_EXT = ['jpg', 'jpeg', 'png', 'tif', 'tiff']
+
+function extOf(name: string) {
+  const i = name.lastIndexOf('.')
+  return i >= 0 ? name.substring(i + 1).toLowerCase() : ''
+}
+
+// อ่านจำนวนหน้าใน TIFF จาก header (นับ IFD) โดยไม่ต้อง decode ภาพ
+// คืน number = จำนวนหน้า, หรือ -1 ถ้าอ่าน header ไม่ได้ (ถือว่าไม่ปลอดภัย)
+async function countTiffPages(file: File): Promise<number> {
+  try {
+    const buf = await file.arrayBuffer()
+    const dv = new DataView(buf)
+    if (dv.byteLength < 8) return -1
+    const b0 = dv.getUint8(0), b1 = dv.getUint8(1)
+    let le: boolean
+    if (b0 === 0x49 && b1 === 0x49) le = true       // 'II' little-endian
+    else if (b0 === 0x4D && b1 === 0x4D) le = false  // 'MM' big-endian
+    else return -1
+    const magic = dv.getUint16(2, le)
+    if (magic !== 42) return -1                      // ไม่ใช่ TIFF มาตรฐาน (BigTIFF=43 ไม่รองรับ)
+    let offset = dv.getUint32(4, le)
+    let pages = 0
+    // เดินตาม linked list ของ IFD จนกว่า next-offset = 0
+    while (offset !== 0 && offset + 2 <= dv.byteLength) {
+      pages++
+      const entries = dv.getUint16(offset, le)
+      const nextPtr = offset + 2 + entries * 12
+      if (nextPtr + 4 > dv.byteLength) break
+      offset = dv.getUint32(nextPtr, le)
+      if (pages > 10000) break                       // กัน loop ผิดปกติ
+    }
+    return pages || -1
+  } catch {
+    return -1
+  }
+}
+
+async function acceptFiles(files: File[]) {
+  const ok: File[] = []
+  const rejected: string[] = []
+  const multipage: string[] = []
+
+  for (const f of files) {
+    const ext = extOf(f.name)
+    if (!ALLOWED_EXT.includes(ext)) {
+      rejected.push(f.name)
+      continue
+    }
+    // TIFF: ตรวจว่าเป็นหลายหน้าไหม — backend ยังแตกหน้าไม่ได้ ถ้าปล่อยผ่านข้อมูลจะหาย
+    if (ext === 'tif' || ext === 'tiff') {
+      const pages = await countTiffPages(f)
+      if (pages > 1) { multipage.push(`${f.name} (${pages} หน้า)`); continue }
+      // pages === -1 (อ่าน header ไม่ได้/BigTIFF) → กันไว้ก่อนเพื่อความปลอดภัย
+      if (pages < 0) { multipage.push(`${f.name} (อ่านจำนวนหน้าไม่ได้)`); continue }
+    }
+    ok.push(f)
+  }
+
+  if (rejected.length) {
+    await dlgAlert(
+      `ไฟล์ต่อไปนี้ไม่รองรับ (เฉพาะ JPG, PNG, TIF เท่านั้น):\n${rejected.join('\n')}`,
+      { type: 'warning' }
+    )
+  }
+  if (multipage.length) {
+    await dlgAlert(
+      `ไม่รองรับไฟล์ TIFF หลายหน้า กรุณาแยกเป็นไฟล์ละหน้าก่อน:\n${multipage.join('\n')}`,
+      { type: 'warning' }
+    )
+  }
+  if (ok.length) scanStore.addFiles(ok)
+}
+
 function onFileSelect(e: Event) {
-  const files = (e.target as HTMLInputElement).files
-  if (files) scanStore.addFiles(Array.from(files))
+  const input = e.target as HTMLInputElement
+  if (input.files) acceptFiles(Array.from(input.files))
+  input.value = ''  // reset เพื่อให้เลือกไฟล์เดิมซ้ำได้
 }
 
 function onDrop(e: DragEvent) {
   dragging.value = false
-  if (e.dataTransfer?.files) scanStore.addFiles(Array.from(e.dataTransfer.files))
+  if (e.dataTransfer?.files) acceptFiles(Array.from(e.dataTransfer.files))
 }
 
 // ── Move mode ────────────────────────────────────────────────
@@ -949,17 +1097,44 @@ async function upload() {
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 .treat-th {
-  background: #1a4f7a;
+  background: var(--cis-primary, #2563a8);
   color: white;
-  padding: 0.35rem 0.4rem;
+  padding: 0.4rem 0.4rem;
   text-align: left;
   font-size: 0.7rem;
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
+  letter-spacing: 0.01em;
 }
 .treat-td {
-  padding: 0.3rem 0.4rem;
-  border-bottom: 1px solid #f3f4f6;
+  padding: 0.4rem 0.4rem;
+  border-bottom: 1px solid #eef2f7;
   font-size: 0.7rem;
+  color: var(--cis-text-primary, #1e293b);
+}
+
+/* แถวตาราง: zebra + hover + selected ให้ไล่สายตาง่าย ลดอ่านผิดแถว */
+.treat-row {
+  transition: background-color 0.12s ease;
+}
+/* zebra: แถวคู่พื้นจางๆ */
+.treat-row:nth-child(even) > .treat-td {
+  background: #fafbfc;
+}
+.treat-row:hover > .treat-td {
+  background: var(--cis-primary-soft, #e3edf7);
+}
+/* แถวที่เลือก: พื้นเด่น + เส้นน้ำเงินซ้ายชี้ชัด */
+.treat-row.is-selected > .treat-td {
+  background: var(--cis-primary-soft, #e3edf7);
+  box-shadow: inset 0 0 0 9999px rgba(37, 99, 168, 0.06);
+}
+.treat-row.is-selected > .treat-td:first-child {
+  box-shadow:
+    inset 3px 0 0 var(--cis-primary, #2563a8),
+    inset 0 0 0 9999px rgba(37, 99, 168, 0.06);
+}
+.treat-row.is-selected > .treat-td {
+  font-weight: 600;
 }
 </style>

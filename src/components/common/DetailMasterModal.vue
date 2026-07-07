@@ -21,7 +21,7 @@
       <!-- Left: TabMst -->
       <div class="border-r border-gray-200 flex flex-col">
         <div class="flex items-center gap-1 px-2 py-2 bg-gray-50 border-b border-gray-200 shrink-0">
-          <span class="text-xs font-semibold text-blue-800 flex-1">Table</span>
+          <span class="text-xs font-semibold flex-1" style="color: var(--cis-primary, #2563a8);">Table</span>
           <button class="icon-btn" title="เพิ่ม" @click="openTabForm('add')"><i class="bi bi-plus-lg" /></button>
           <button class="icon-btn" title="แก้ไข" @click="openTabForm('edit')"><i class="bi bi-pencil" /></button>
           <button class="icon-btn danger" title="ลบ" @click="deleteTab"><i class="bi bi-trash" /></button>
@@ -53,7 +53,7 @@
         <!-- DtlMst -->
         <div class="flex-1 flex flex-col border-b border-gray-200 overflow-hidden">
           <div class="flex items-center gap-1 px-2 py-2 bg-gray-50 border-b border-gray-200 shrink-0">
-            <span class="text-xs font-semibold text-blue-800 flex-1">Detail</span>
+            <span class="text-xs font-semibold flex-1" style="color: var(--cis-primary, #2563a8);">Detail</span>
             <button class="icon-btn" @click="openDtlForm('add')"><i class="bi bi-plus-lg" /></button>
             <button class="icon-btn" @click="openDtlForm('edit')"><i class="bi bi-pencil" /></button>
             <button class="icon-btn danger" @click="deleteDtl"><i class="bi bi-trash" /></button>
@@ -89,7 +89,7 @@
         <!-- DtsMst -->
         <div class="flex-1 flex flex-col overflow-hidden">
           <div class="flex items-center gap-1 px-2 py-2 bg-gray-50 border-b border-gray-200 shrink-0">
-            <span class="text-xs font-semibold text-blue-800 flex-1">Sub Detail</span>
+            <span class="text-xs font-semibold flex-1" style="color: var(--cis-primary, #2563a8);">Sub Detail</span>
             <button class="icon-btn" @click="openDtsForm('add')"><i class="bi bi-plus-lg" /></button>
             <button class="icon-btn" @click="openDtsForm('edit')"><i class="bi bi-pencil" /></button>
             <button class="icon-btn danger" @click="deleteDts"><i class="bi bi-trash" /></button>
@@ -139,24 +139,33 @@
     @update:model-value="crudOpen = false"
   >
     <div class="space-y-3">
-      <template v-for="field in crudFields" :key="field.id">
+      <template v-for="(field, idx) in crudFields" :key="field.id">
         <div>
           <label class="form-label">{{ field.label }}<span v-if="field.required" class="text-red-500">*</span></label>
-          <input
-            :id="field.id"
-            v-model="crudValues[field.id]"
-            type="text"
-            class="form-input"
-            :readonly="field.readonly"
-            :class="field.readonly ? 'bg-gray-50' : ''"
-            :maxlength="field.maxlength"
-          />
+          <div class="relative">
+            <input
+              :id="field.id"
+              v-model="crudValues[field.id]"
+              type="text"
+              class="form-input"
+              :class="[field.readonly ? 'bg-gray-50' : '', (idx === 0 && crudCodeError) ? 'dm-input-error' : '']"
+              :readonly="field.readonly"
+              :maxlength="field.maxlength"
+              @blur="idx === 0 ? checkCrudDup() : undefined"
+              @input="idx === 0 ? (crudCodeError = '') : undefined"
+            />
+            <span v-if="idx === 0 && checkingCode"
+              class="absolute right-2 top-1/2 -translate-y-1/2 loading-spinner" />
+          </div>
+          <p v-if="idx === 0 && crudCodeError" class="dm-error-text">
+            <i class="bi bi-exclamation-circle-fill" /> {{ crudCodeError }}
+          </p>
         </div>
       </template>
     </div>
     <template #footer>
       <button class="btn-outline" @click="crudOpen = false">ยกเลิก</button>
-      <button class="btn-primary gap-1" :disabled="saving" @click="crudSave">
+      <button class="btn-primary gap-1" :disabled="saving || checkingCode || !!crudCodeError" @click="crudSave">
         <i class="bi bi-check-lg" /> บันทึก
       </button>
     </template>
@@ -217,6 +226,12 @@ const crudFields = ref<CrudField[]>([])
 const crudValues = reactive<Record<string, string>>({})
 const crudSaveFn = ref<() => Promise<void>>(() => Promise.resolve())
 
+// dup-check (เช็คซ้ำเฉพาะโหมด add) — คืน true ถ้า "ซ้ำ"
+// ตั้งเป็น null ตอน edit เพื่อข้ามการเช็ค
+const crudDupFn = ref<(() => Promise<boolean>) | null>(null)
+const crudCodeError = ref('')     // ข้อความ error ใต้ช่อง code (field แรก)
+const checkingCode = ref(false)
+
 // Confirm
 const confirmMsg = ref('')
 const confirmFn = ref<() => Promise<void>>(() => Promise.resolve())
@@ -271,19 +286,75 @@ async function selectDtl(d: any) {
 }
 
 // ── CRUD helper ───────────────────────────────────────────────
-function openCrud(title: string, fields: CrudField[], defaults: Record<string, string>, saveFn: () => Promise<void>) {
+function openCrud(
+  title: string,
+  fields: CrudField[],
+  defaults: Record<string, string>,
+  saveFn: () => Promise<void>,
+  dupFn: (() => Promise<boolean>) | null = null
+) {
   crudTitle.value = title
   crudFields.value = fields
   Object.keys(crudValues).forEach(k => delete crudValues[k])
   Object.assign(crudValues, defaults)
   crudSaveFn.value = saveFn
+  crudDupFn.value = dupFn        // null = โหมด edit / ไม่ต้องเช็ค
+  crudCodeError.value = ''
+  checkingCode.value = false
   crudOpen.value = true
 }
 
+// เช็ค code ซ้ำ(field แรก) กับ backend — เรียกตอน blur / ก่อนบันทึก
+// คืน true ถ้า "ผ่าน" (ไม่ซ้ำ), false ถ้าซ้ำ
+async function checkCrudDup(): Promise<boolean> {
+  if (!crudDupFn.value) return true          // edit / ไม่ต้องเช็ค
+  const codeField = crudFields.value[0]
+  if (!codeField) return true
+  const code = (crudValues[codeField.id] || '').trim()
+  if (!code) { crudCodeError.value = ''; return false }
+  checkingCode.value = true
+  try {
+    const dup = await crudDupFn.value()
+    if (dup) {
+      crudCodeError.value = 'รหัสนี้มีอยู่ในระบบแล้ว กรุณาใช้รหัสอื่น'
+      return false
+    }
+    crudCodeError.value = ''
+    return true
+  } catch (e) {
+    // เช็คไม่สำเร็จ — ไม่บล็อคตรงนี้ ปล่อยให้ backend guard จับตอนบันทึก
+    console.error(e)
+    crudCodeError.value = ''
+    return true
+  } finally {
+    checkingCode.value = false
+  }
+}
+
 async function crudSave() {
+  // เช็คซ้ำอีกครั้งตอนกดบันทึก (เฉพาะโหมด add ที่มี dupFn)
+  if (crudDupFn.value) {
+    const ok = await checkCrudDup()
+    if (!ok) {
+      if (!crudCodeError.value) crudCodeError.value = 'กรุณากรอกรหัส'
+      await dlgAlert(crudCodeError.value, { type: 'warning' })
+      return
+    }
+  }
   saving.value = true
-  try { await crudSaveFn.value() }
-  finally { saving.value = false }
+  try {
+    await crudSaveFn.value()
+  } catch (e: any) {
+    // 409 = ซ้ำ (backend guard ชั้นสุดท้าย) — โชว์ที่ช่อง code ด้วย
+    if (e.response?.status === 409) {
+      crudCodeError.value = e.response?.data?.error || 'รหัสนี้มีอยู่ในระบบแล้ว'
+      await dlgAlert(crudCodeError.value, { type: 'error' })
+    } else {
+      await dlgAlert(e.response?.data?.error || e.message, { type: 'error' })
+    }
+  } finally {
+    saving.value = false
+  }
 }
 
 function showConfirm(msg: string, fn: () => Promise<void>) {
@@ -314,7 +385,16 @@ async function openTabForm(mode: 'add' | 'edit') {
       const url = mode === 'add' ? '/master/tabmst/insert' : '/master/tabmst/update'
       await api.post(url, { tabCod: crudValues.tabCod.toUpperCase(), tabCodNam: crudValues.tabCodNam, tabCodTyp: selectedTyp.value })
       crudOpen.value = false; await onTypChange()
-    }
+    },
+    // dup-check เฉพาะ add: เช็ค TabCod ซ้ำใน TabCodTyp ปัจจุบัน
+    mode === 'add'
+      ? async () => {
+          const res = await api.get('/master/tabmst/exists', {
+            params: { tabCodTyp: selectedTyp.value, tabCod: (crudValues.tabCod || '').toUpperCase() }
+          })
+          return !!res.data?.exists
+        }
+      : null
   )
 }
 
@@ -359,7 +439,16 @@ async function openDtlForm(mode: 'add' | 'edit') {
         })
       }
       crudOpen.value = false; await selectTab(selectedTab.value)
-    }
+    },
+    // dup-check เฉพาะ add: เช็ค DtlCod ซ้ำใน DtlTblCod ปัจจุบัน
+    mode === 'add'
+      ? async () => {
+          const res = await api.get('/master/dtlmst/exists', {
+            params: { dtlTblCod: selectedTab.value.TabCod?.trim(), dtlCod: (crudValues.dtlCod || '').toUpperCase() }
+          })
+          return !!res.data?.exists
+        }
+      : null
   )
 }
 
@@ -405,7 +494,20 @@ async function openDtsForm(mode: 'add' | 'edit') {
         })
       }
       crudOpen.value = false; await selectDtl(selectedDtl.value)
-    }
+    },
+    // dup-check เฉพาะ add: เช็ค DtsSubCod ซ้ำใน DtsTblCod+DtsCod ปัจจุบัน
+    mode === 'add'
+      ? async () => {
+          const res = await api.get('/master/dtsmst/exists', {
+            params: {
+              dtsTblCod: selectedTab.value.TabCod?.trim(),
+              dtsCod: selectedDtl.value.DtlCod?.trim(),
+              dtsSubCod: (crudValues.dtsSubCod || '').toUpperCase()
+            }
+          })
+          return !!res.data?.exists
+        }
+      : null
   )
 }
 
@@ -450,13 +552,15 @@ async function onDtsDrop() {
 
 <style scoped>
 .master-table { width: 100%; font-size: 0.875rem; border-collapse: collapse; }
-.master-table th { background: #1a4f7a; color: white; padding: 0.5rem; text-align: left; font-size: 0.75rem; font-weight: 500; position: sticky; top: 0; z-index: 10; }
+.master-table th { background: var(--cis-primary, #2563a8); color: white; padding: 0.5rem; text-align: left; font-size: 0.75rem; font-weight: 500; position: sticky; top: 0; z-index: 10; }
 .master-table td { padding: 0.375rem 0.5rem; border-bottom: 1px solid #f3f4f6; }
 .master-table tr.clickable:hover td { background: #eff6ff; cursor: pointer; }
 .master-table tr.selected td { background: #dbeafe; }
 .icon-btn { width: 1.5rem; height: 1.5rem; display: flex; align-items: center; justify-content: center; border-radius: 0.25rem; border: 1px solid #e5e7eb; background: white; color: #4b5563; font-size: 0.75rem; cursor: pointer; transition: all 0.15s; }
 .icon-btn:hover { border-color: #60a5fa; color: #1d4ed8; }
 .icon-btn.danger:hover { border-color: #f87171; color: #dc2626; }
+.dm-input-error { border-color: #dc2626 !important; box-shadow: 0 0 0 3px rgba(220,38,38,0.12) !important; }
+.dm-error-text { margin-top: 0.25rem; font-size: 0.75rem; color: #dc2626; display: flex; align-items: center; gap: 0.25rem; }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>

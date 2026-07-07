@@ -7,13 +7,22 @@
     @update:model-value="emit('update:modelValue', $event)"
   >
     <div class="flex gap-2 mb-4">
-      <input
-        v-model="search"
-        type="text"
-        class="form-input flex-1"
-        placeholder="ค้นหา..."
-        @keydown.enter="load"
-      />
+      <div class="relative flex-1">
+        <input
+          v-model="search"
+          type="text"
+          class="form-input w-full pr-8"
+          placeholder="ค้นหา..."
+          @keydown.enter="load"
+        />
+        <button
+          v-if="search"
+          type="button"
+          class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          title="ล้างคำค้นหา"
+          @click="clearSearch"
+        ><i class="bi bi-x-lg text-xs" /></button>
+      </div>
       <button class="btn-primary gap-1" @click="load">
         <i class="bi bi-search" /> ค้นหา
       </button>
@@ -85,7 +94,16 @@ const items = ref<any[]>([])
 const loading = ref(false)
 const saving = ref(false)
 
-watch(() => props.modelValue, (v) => { if (v) load() })
+watch(() => props.modelValue, (v) => {
+  if (v) load()
+  else { search.value = ''; items.value = [] }   // เคลียร์ค่าเมื่อปิด modal
+})
+
+// ล้างคำค้นหาแล้วโหลดใหม่
+function clearSearch() {
+  search.value = ''
+  load()
+}
 
 async function load() {
   loading.value = true

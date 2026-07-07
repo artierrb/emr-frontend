@@ -26,22 +26,24 @@
         <!-- Status -->
         <div>
           <label class="form-label">สถานะ</label>
-          <select v-model="fStatus" class="form-select text-xs py-1.5 w-52">
-            <option value="ALL">ALL</option>
-            <option value="WAITING">Waiting for confirmation</option>
-            <option value="CONFIRMED">Confirmed</option>
-            <option value="END">End</option>
-          </select>
+          <div class="w-52">
+            <EMRCombobox v-model="fStatus" :options="statusOptions" :clearable="false"
+              leading-icon="bi bi-flag" placeholder="สถานะ" />
+          </div>
         </div>
 
         <!-- Date range -->
         <div>
           <label class="form-label">วันที่ลงทะเบียน (จาก)</label>
-          <input v-model="fDateFrom" type="date" class="form-input text-xs py-1.5" />
+          <div class="w-40">
+            <EMRDatePicker v-model="fDateFrom" :clearable="false" />
+          </div>
         </div>
         <div>
           <label class="form-label">ถึง</label>
-          <input v-model="fDateTo" type="date" class="form-input text-xs py-1.5" />
+          <div class="w-40">
+            <EMRDatePicker v-model="fDateTo" :clearable="false" />
+          </div>
         </div>
 
         <button class="btn-primary gap-1 py-1.5" :disabled="loading" @click="onSearch">
@@ -139,6 +141,8 @@ import { usePatientStore } from '@/stores/patient'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
 import { useDialog } from '@/composables/useDialog'
+import EMRCombobox, { type ComboOption } from '@/components/common/EMRCombobox.vue'
+import EMRDatePicker from '@/components/common/EMRDatePicker.vue'
 
 const patientStore = usePatientStore()
 const authStore = useAuthStore()
@@ -146,20 +150,37 @@ const { alert: dlgAlert, confirm: dlgConfirm } = useDialog()
 
 const hnSep = computed(() => patientStore.hnConfig.hnSep === 'Y')
 
+// สถานะ (static options สำหรับ EMRCombobox)
+const statusOptions: ComboOption[] = [
+  { value: 'ALL',       label: 'ALL' },
+  { value: 'WAITING',   label: 'Waiting for confirmation' },
+  { value: 'CONFIRMED', label: 'Confirmed' },
+  { value: 'END',       label: 'End' },
+]
+
 // Filter state
 const fHnMain   = ref('')
 const fHnYear   = ref('')
 const fStatus   = ref('ALL')
-const fDateFrom = ref(todayIso())
-const fDateTo   = ref(todayIso())
+const fDateFrom = ref(todayDb())   // EMRDatePicker: YYYYMMDD
+const fDateTo   = ref(todayDb())
 
 const rows     = ref<any[]>([])
 const loading  = ref(false)
 const selected = ref<any>(null)
 const acting   = ref<string>('')   // '' | 'confirm' | 'end'
 
-function todayIso(): string {
-  return new Date().toISOString().substring(0, 10)
+// วันนี้แบบ DB format (YYYYMMDD ค.ศ.) — ตรงกับ v-model ของ EMRDatePicker
+function todayDb(): string {
+  const d = new Date()
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
+}
+
+// EMRDatePicker เก็บ YYYYMMDD แต่ SECUDATE เป็น datetime → backend ต่อ " 00:00:00"
+// จึงต้องแปลงเป็น YYYY-MM-DD ก่อนส่ง (มี dash) ไม่งั้น CONVERT ฝั่ง SQL พัง
+function dbToDash(db: string | null): string | undefined {
+  if (!db || db.length !== 8) return undefined
+  return `${db.slice(0, 4)}-${db.slice(4, 6)}-${db.slice(6, 8)}`
 }
 
 // แปลง HN ที่กรอก → PATID padded 8 หลัก (เหมือน HN inputer)
@@ -205,8 +226,8 @@ async function onReset() {
   fHnMain.value = ''
   fHnYear.value = ''
   fStatus.value = 'ALL'
-  fDateFrom.value = todayIso()
-  fDateTo.value = todayIso()
+  fDateFrom.value = todayDb()
+  fDateTo.value = todayDb()
   selected.value = null
   await onSearch()
 }
@@ -219,9 +240,9 @@ async function onSearch() {
     const res = await api.get('/secure-admin/search', {
       params: {
         patId: computePatId() || undefined,
-        status: fStatus.value,
-        dateFrom: fDateFrom.value || undefined,
-        dateTo: fDateTo.value || undefined,
+        status: fStatus.value || 'ALL',
+        dateFrom: dbToDash(fDateFrom.value),
+        dateTo: dbToDash(fDateTo.value),
       }
     })
     rows.value = res.data
@@ -291,7 +312,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.sec-th { background: #1a4f7a; color: white; padding: 0.45rem 0.6rem; text-align: left; font-size: 0.7rem; font-weight: 500; white-space: nowrap; }
+.sec-th { background: #2563a8; color: white; padding: 0.45rem 0.6rem; text-align: left; font-size: 0.7rem; font-weight: 500; white-space: nowrap; }
 .sec-td { padding: 0.4rem 0.6rem; font-size: 0.72rem; color: #374151; }
 .badge-green { background: #dcfce7; color: #15803d; padding: 0.1rem 0.5rem; border-radius: 0.75rem; font-weight: 600; }
 .badge-red   { background: #fee2e2; color: #b91c1c; padding: 0.1rem 0.5rem; border-radius: 0.75rem; font-weight: 600; }

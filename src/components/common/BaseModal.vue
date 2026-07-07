@@ -5,7 +5,8 @@
         v-if="modelValue"
         class="fixed inset-0 z-50 flex items-center justify-center"
         :style="{ zIndex }"
-        @click.self="onBackdrop"
+        @mousedown.self="onBackdropDown"
+        @mouseup.self="onBackdropUp"
       >
         <!-- Backdrop -->
         <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-sm" />
@@ -46,6 +47,8 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
+
 const props = withDefaults(defineProps<{
   modelValue: boolean
   title: string
@@ -61,8 +64,19 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
 
-function onBackdrop() {
-  if (props.closeOnBackdrop) emit('update:modelValue', false)
+// ปิดเฉพาะเมื่อทั้ง mousedown และ mouseup เกิดบน backdrop ตัวเดียวกัน
+// ป้องกันกรณีลาก select ข้อความในช่อง input แล้วปล่อยเมาส์เลยออกมาโดน backdrop (จะไม่ปิด)
+const downOnBackdrop = ref(false)
+
+function onBackdropDown() {
+  downOnBackdrop.value = true
+}
+
+function onBackdropUp() {
+  if (props.closeOnBackdrop && downOnBackdrop.value) {
+    emit('update:modelValue', false)
+  }
+  downOnBackdrop.value = false
 }
 </script>
 

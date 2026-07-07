@@ -8,37 +8,26 @@
         <div class="grid gap-3" style="grid-template-columns:repeat(6,1fr);">
           <div>
             <label class="form-label">วันที่เริ่ม</label>
-            <input v-model="startDate" type="date" class="form-input" />
+            <EMRDatePicker v-model="startDate" :clearable="false" />
           </div>
           <div>
             <label class="form-label">ถึงวันที่</label>
-            <input v-model="endDate" type="date" class="form-input" />
+            <EMRDatePicker v-model="endDate" :clearable="false" />
           </div>
           <div>
             <label class="form-label">Clinic</label>
-            <select v-model="clinCode" class="form-select">
-              <option value="ALL">-- ทั้งหมด --</option>
-              <option v-for="c in clinics" :key="c.CLINCODE" :value="c.CLINCODE">
-                {{ c.CLINCODE }} - {{ c.NAME }}
-              </option>
-            </select>
+            <EMRCombobox v-model="clinCode" :options="clinicOptions" :clearable="false"
+              leading-icon="bi bi-hospital" placeholder="-- ทั้งหมด --" />
           </div>
           <div>
             <label class="form-label">Return Status</label>
-            <select v-model="scanYn" class="form-select">
-              <option value="ALL">-- ทั้งหมด --</option>
-              <option value="Y">Return</option>
-              <option value="N">No Return</option>
-            </select>
+            <EMRCombobox v-model="scanYn" :options="scanYnOptions" :clearable="false"
+              leading-icon="bi bi-check2-square" placeholder="-- ทั้งหมด --" />
           </div>
           <div>
             <label class="form-label">Group Form</label>
-            <select v-model="grpCode" class="form-select">
-              <option value="ALL">-- ทั้งหมด --</option>
-              <option v-for="g in formGroups" :key="g.GRPCODE" :value="g.GRPCODE">
-                {{ g.NAME }}
-              </option>
-            </select>
+            <EMRCombobox v-model="grpCode" :options="groupOptions" :clearable="false"
+              leading-icon="bi bi-collection" placeholder="-- ทั้งหมด --" />
           </div>
           <div>
             <label class="form-label">OCR Code</label>
@@ -146,30 +135,27 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useDialog } from '@/composables/useDialog'
 const { alert: dlgAlert } = useDialog()
 import { ocrReturnApi, formApi } from '@/services/api'
 import type { OcrReturnRow, Clinic, FormGroup } from '@/types'
 import { usePatientStore } from '@/stores/patient'
 import HnInputer from '@/components/common/HnInputer.vue'
+import EMRCombobox, { type ComboOption } from '@/components/common/EMRCombobox.vue'
+import EMRDatePicker from '@/components/common/EMRDatePicker.vue'
 
 const patientStore = usePatientStore()
 const hnInputer = ref<InstanceType<typeof HnInputer>>()
 
-function todayStr() {
+// วันนี้แบบ DB format (YYYYMMDD ค.ศ.) — ตรงกับ v-model ของ EMRDatePicker
+function todayDb(): string {
   const d = new Date()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${day}`
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
 }
 
-function toYmd(dateStr: string) {
-  return dateStr.replace(/-/g, '')
-}
-
-const startDate = ref(todayStr())
-const endDate   = ref(todayStr())
+const startDate = ref(todayDb())   // EMRDatePicker: YYYYMMDD (เดิม toYmd แปลงตอนส่ง — ตอนนี้ตรงแล้ว)
+const endDate   = ref(todayDb())
 const clinCode  = ref('ALL')
 const scanYn    = ref('ALL')
 const grpCode   = ref('ALL')
@@ -182,6 +168,21 @@ const rows       = ref<OcrReturnRow[]>([])
 const selectedRow = ref<OcrReturnRow | null>(null)
 const loading = ref(false)
 const saving  = ref(false)
+
+// ── static options (EMRCombobox) ──
+const clinicOptions = computed<ComboOption[]>(() => [
+  { value: 'ALL', label: '-- ทั้งหมด --' },
+  ...clinics.value.map(c => ({ value: c.CLINCODE, label: c.NAME, code: c.CLINCODE })),
+])
+const scanYnOptions: ComboOption[] = [
+  { value: 'ALL', label: '-- ทั้งหมด --' },
+  { value: 'Y',   label: 'Return' },
+  { value: 'N',   label: 'No Return' },
+]
+const groupOptions = computed<ComboOption[]>(() => [
+  { value: 'ALL', label: '-- ทั้งหมด --' },
+  ...formGroups.value.map(g => ({ value: g.GRPCODE, label: g.NAME })),
+])
 
 onMounted(async () => {
   try {
@@ -215,9 +216,10 @@ async function search() {
   loading.value = true
   selectedRow.value = null
   try {
+    // EMRDatePicker เก็บ YYYYMMDD ตรงกับ INDATE อยู่แล้ว → ส่งตรง ไม่ต้อง toYmd
     rows.value = await ocrReturnApi.search({
-      startDate: toYmd(startDate.value),
-      endDate: toYmd(endDate.value),
+      startDate: startDate.value,
+      endDate: endDate.value,
       clinCode: clinCode.value,
       scanYn: scanYn.value,
       grpCode: grpCode.value,
@@ -238,8 +240,8 @@ function onHnFilterSearch(_hn: string) {
 }
 
 function clearFilters() {
-  startDate.value = todayStr()
-  endDate.value = todayStr()
+  startDate.value = todayDb()
+  endDate.value = todayDb()
   clinCode.value = 'ALL'
   scanYn.value = 'ALL'
   grpCode.value = 'ALL'
@@ -291,9 +293,9 @@ function printList() {
       body{font-family:Arial,sans-serif;font-size:11px;}
       table{width:100%;border-collapse:collapse;}
       th,td{border:1px solid #ccc;padding:4px 6px;text-align:left;}
-      th{background:#1a4f7a;color:#fff;}
+      th{background:#2563a8;color:#fff;}
     </style></head><body>
-    <h3>OCR Return List (${startDate.value} - ${endDate.value})</h3>
+    <h3>OCR Return List (${formatDate(startDate.value)} - ${formatDate(endDate.value)})</h3>
     <table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
     <tbody>${tableRows}</tbody></table>
     </body></html>`)
@@ -322,7 +324,7 @@ function exportExcel() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `ocrreturn_${toYmd(startDate.value)}_${toYmd(endDate.value)}.xls`
+  a.download = `ocrreturn_${startDate.value}_${endDate.value}.xls`
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
@@ -332,7 +334,7 @@ function exportExcel() {
 
 <style scoped>
 .treat-th {
-  background: #1a4f7a;
+  background: #2563a8;
   color: white;
   padding: 0.35rem 0.5rem;
   text-align: left;

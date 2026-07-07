@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen bg-slate-50 flex flex-col">
-    <!-- Header -->
-    <header class="bg-gradient-to-r from-[#1a4f7a] to-[#2563a8] text-white px-5 py-2 flex items-center gap-3 shadow-md">
+    <!-- Header (ซ่อนบนหน้า login) -->
+    <header v-if="!isLoginPage" class="bg-gradient-to-r from-[#1a4f7a] to-[#2563a8] text-white px-5 py-2 flex items-center gap-3 shadow-md">
       <img src="/logo.jpg" class="h-9 w-9 rounded object-cover" alt="BIT" />
       <div>
         <h1 class="text-sm font-semibold">EMR Document System</h1>
@@ -17,8 +17,8 @@
       <UserPanel v-else />
     </header>
 
-    <!-- App switcher + Tabs + HN bar -->
-    <nav class="bg-white border-b-2 border-gray-200 px-5 flex items-center min-h-[48px] overflow-visible">
+    <!-- App switcher + Tabs + HN bar (ซ่อนบนหน้า login) -->
+    <nav v-if="!isLoginPage" class="bg-white border-b-2 border-gray-200 px-5 flex items-center min-h-[48px] overflow-visible">
       <!-- App switcher — ซ่อนทั้งหมดใน OCS mode (เหลือเฉพาะ Viewer) -->
       <div v-if="!authStore.ocsMode" class="flex border-r border-gray-200 pr-4 mr-2 gap-1">
         <RouterLink to="/scan"
@@ -57,8 +57,8 @@
       <div v-else class="flex-1" />
     </nav>
 
-    <!-- Content -->
-    <main class="flex-1 p-5">
+    <!-- Content (login = เต็มจอ ไม่มี padding) -->
+    <main class="flex-1" :class="{ 'p-5': !isLoginPage }">
       <RouterView />
     </main>
   </div>
@@ -81,6 +81,8 @@ const authStore    = useAuthStore()
 
 const isScanApp   = computed(() => route.path.startsWith('/scan'))
 const isViewerApp = computed(() => route.path.startsWith('/viewer'))
+// login = ซ่อน header + navbar ให้เห็นเฉพาะ body
+const isLoginPage = computed(() => route.path === '/login' || route.name === 'login')
 
 // Clear state when switching apps
 let prevApp = ''

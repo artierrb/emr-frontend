@@ -7,7 +7,7 @@
         <i class="bi bi-funnel" /> ค้นหา — ทะเบียนขอยืมแฟ้ม
         <!-- Auto refresh -->
         <label class="ml-auto flex items-center gap-1.5 text-xs font-normal text-gray-500 cursor-pointer">
-          <input type="checkbox" v-model="autoRefresh" class="accent-[#1a4f7a]" />
+          <input type="checkbox" v-model="autoRefresh" class="accent-[#2563a8]" />
           Auto refresh (10 วิ)
         </label>
       </div>
@@ -38,30 +38,33 @@
         <!-- Status -->
         <div>
           <label class="form-label">สถานะ</label>
-          <select v-model="fStatus" class="form-select text-xs py-1.5 w-52">
-            <option value="ALL">ALL</option>
-            <option value="WAITING">Waiting for confirmation</option>
-            <option value="CONFIRMED">Confirmed</option>
-          </select>
+          <div class="w-52">
+            <EMRCombobox v-model="fStatus" :options="statusOptions" :clearable="false"
+              leading-icon="bi bi-flag" placeholder="สถานะ" />
+          </div>
         </div>
 
         <!-- Reason -->
         <div>
           <label class="form-label">เหตุผล</label>
-          <select v-model="fRentCode" class="form-select text-xs py-1.5 w-44">
-            <option value="">ทั้งหมด</option>
-            <option v-for="r in reasons" :key="r.DtlCod" :value="r.DtlCod">{{ r.DtlCodNam }}</option>
-          </select>
+          <div class="w-44">
+            <EMRCombobox v-model="fRentCode" :options="reasonOptions" :clearable="false"
+              leading-icon="bi bi-tag" placeholder="ทั้งหมด" />
+          </div>
         </div>
 
         <!-- Date range (RENTSDT) -->
         <div>
           <label class="form-label">วันที่ยืม (จาก)</label>
-          <input v-model="fDateFrom" type="date" class="form-input text-xs py-1.5" />
+          <div class="w-40">
+            <EMRDatePicker v-model="fDateFrom" :clearable="false" />
+          </div>
         </div>
         <div>
           <label class="form-label">ถึง</label>
-          <input v-model="fDateTo" type="date" class="form-input text-xs py-1.5" />
+          <div class="w-40">
+            <EMRDatePicker v-model="fDateTo" :clearable="false" />
+          </div>
         </div>
 
         <button class="btn-primary gap-1 py-1.5" :disabled="loading" @click="onSearch()">
@@ -150,20 +153,29 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { usePatientStore } from '@/stores/patient'
 import api from '@/services/api'
 import { useDialog } from '@/composables/useDialog'
+import EMRCombobox, { type ComboOption } from '@/components/common/EMRCombobox.vue'
+import EMRDatePicker from '@/components/common/EMRDatePicker.vue'
 
 const patientStore = usePatientStore()
 const { alert: dlgAlert, confirm: dlgConfirm } = useDialog()
 
 const hnSep = computed(() => patientStore.hnConfig.hnSep === 'Y')
 
+// สถานะ (static)
+const statusOptions: ComboOption[] = [
+  { value: 'ALL',       label: 'ALL' },
+  { value: 'WAITING',   label: 'Waiting for confirmation' },
+  { value: 'CONFIRMED', label: 'Confirmed' },
+]
+
 // Filter state
 const fRentNo   = ref('')
 const fHnMain   = ref('')
 const fHnYear   = ref('')
 const fStatus   = ref('ALL')
-const fRentCode = ref('')
-const fDateFrom = ref(todayIso())
-const fDateTo   = ref(todayIso())
+const fRentCode = ref('')            // '' = ทั้งหมด
+const fDateFrom = ref(todayDb())     // EMRDatePicker: YYYYMMDD
+const fDateTo   = ref(todayDb())
 
 const reasons  = ref<any[]>([])
 const rows     = ref<any[]>([])
@@ -171,12 +183,20 @@ const loading  = ref(false)
 const selected = ref<any>(null)
 const acting   = ref(false)
 
+// เหตุผล → options (มี 'ทั้งหมด' นำหน้า, value='' )
+const reasonOptions = computed<ComboOption[]>(() => [
+  { value: '', label: 'ทั้งหมด' },
+  ...reasons.value.map(r => ({ value: r.DtlCod, label: r.DtlCodNam })),
+])
+
 // Auto refresh
 const autoRefresh = ref(false)
 let refreshTimer: any = null
 
-function todayIso(): string {
-  return new Date().toISOString().substring(0, 10)
+// วันนี้แบบ DB format (YYYYMMDD ค.ศ.) — ตรงกับ v-model ของ EMRDatePicker
+function todayDb(): string {
+  const d = new Date()
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
 }
 
 function computePatId(): string {
@@ -226,8 +246,8 @@ async function onReset() {
   fHnYear.value = ''
   fStatus.value = 'ALL'
   fRentCode.value = ''
-  fDateFrom.value = todayIso()
-  fDateTo.value = todayIso()
+  fDateFrom.value = todayDb()
+  fDateTo.value = todayDb()
   selected.value = null
   await onSearch()
 }
@@ -237,11 +257,13 @@ async function onSearch(keepSelection = false) {
   loading.value = true
   if (!keepSelection) selected.value = null
   try {
+    // EMRDatePicker เก็บ YYYYMMDD — RENTSDT เก็บ yyyyMMdd (varchar) และ backend .replace('-','')
+    // ให้เองอยู่แล้ว จึงส่ง YYYYMMDD ตรงได้ (replace เป็น no-op)
     const res = await api.get('/rent-admin/search', {
       params: {
         rentNo: fRentNo.value.trim() || undefined,
         patId: computePatId() || undefined,
-        status: fStatus.value,
+        status: fStatus.value || 'ALL',
         rentCode: fRentCode.value || undefined,
         dateFrom: fDateFrom.value || undefined,
         dateTo: fDateTo.value || undefined,
@@ -315,7 +337,7 @@ function exportExcel() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `rent_list_${todayIso()}.xls`
+  a.download = `rent_list_${todayDb()}.xls`
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -334,9 +356,9 @@ function printList() {
       h2 { font-size: 16px; }
       table { width: 100%; border-collapse: collapse; font-size: 12px; }
       th, td { border: 1px solid #999; padding: 4px 8px; text-align: left; }
-      th { background: #1a4f7a; color: white; }
+      th { background: #2563a8; color: white; }
     </style></head><body>
-    <h2>รายการขอยืมแฟ้ม (${rows.value.length} รายการ) — ${todayIso()}</h2>
+    <h2>รายการขอยืมแฟ้ม (${rows.value.length} รายการ) — ${todayDb()}</h2>
     <table><thead><tr>${headers.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
     <tbody>${tableRows}</tbody></table>
     </body></html>`)
@@ -363,7 +385,7 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
 </script>
 
 <style scoped>
-.rent-th { background: #1a4f7a; color: white; padding: 0.45rem 0.6rem; text-align: left; font-size: 0.7rem; font-weight: 500; white-space: nowrap; }
+.rent-th { background: #2563a8; color: white; padding: 0.45rem 0.6rem; text-align: left; font-size: 0.7rem; font-weight: 500; white-space: nowrap; }
 .rent-td { padding: 0.4rem 0.6rem; font-size: 0.72rem; color: #374151; }
 .badge-green { background: #dcfce7; color: #15803d; padding: 0.1rem 0.5rem; border-radius: 0.75rem; font-weight: 600; }
 .badge-amber { background: #fef3c7; color: #b45309; padding: 0.1rem 0.5rem; border-radius: 0.75rem; font-weight: 600; }

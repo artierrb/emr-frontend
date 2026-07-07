@@ -1,6 +1,56 @@
 @import "tailwindcss";
 @import "bootstrap-icons/font/bootstrap-icons.css";
-@import "tailwindcss";
+
+/* ==========================================================================
+   EMR Design Tokens (base palette #2563a8)
+   สีแบรนด์หลักทั้งระบบใช้ var(--cis-primary) = #2563a8
+   .btn-primary / .btn-outline / .card-header ชี้ token แล้ว — เปลี่ยนที่ :root ที่เดียว
+   ========================================================================== */
+:root {
+  /* Primary (ฐาน #2563a8) */
+  --cis-primary:        #2563a8;
+  --cis-primary-hover:  #1d4d85;   /* เข้มลง ~12% สำหรับ hover/gradient ปลายเข้ม */
+  --cis-primary-light:  #3b7dc9;   /* สว่างขึ้น สำหรับ gradient ปลายอ่อน */
+  --cis-primary-soft:   #e3edf7;   /* focus ring / selected row tint */
+  --cis-primary-strong: #17385f;   /* ข้อความ/ขอบเข้มพิเศษ */
+
+  /* Neutral คู่ contrast */
+  --cis-white:          #ffffff;
+  --cis-ink:            #0f172a;    /* ดำอมน้ำเงิน (ไม่ใช้ดำล้วน) */
+
+  /* Text */
+  --cis-text-primary:   #1e293b;
+  --cis-text-secondary: #475569;
+  --cis-text-muted:     #64748b;
+
+  /* Surfaces */
+  --cis-bg-app:         #f5f7fa;
+  --cis-bg-surface:     #ffffff;
+  --cis-bg-subtle:      #eef2f7;
+
+  /* Semantic */
+  --cis-success:        #16a34a;
+  --cis-warning:        #d97706;
+  --cis-danger:         #dc2626;
+  --cis-danger-hover:   #b91c1c;
+  --cis-danger-soft:    #fee2e2;
+
+  /* Lines & radius */
+  --cis-border:         #e2e8f0;
+  --cis-radius-sm:      8px;
+  --cis-radius-md:      12px;
+  --cis-radius-lg:      16px;
+
+  /* Soft shadows */
+  --cis-shadow-sm:      0 1px 2px rgba(15,23,42,.06), 0 1px 3px rgba(15,23,42,.08);
+  --cis-shadow-md:      0 4px 6px rgba(15,23,42,.05), 0 10px 15px rgba(15,23,42,.08);
+  --cis-shadow-lg:      0 10px 25px rgba(15,23,42,.10);
+
+  /* Glow ของปุ่มเล่นแสง (คุมโทน #2563a8) */
+  --cis-glow:           0 6px 16px rgba(37, 99, 168, 0.30);
+  --cis-glow-hover:     0 8px 20px rgba(37, 99, 168, 0.38);
+  --cis-glow-danger:    0 6px 16px rgba(220, 38, 38, 0.28);
+}
 
 /* ── Form controls ── */
 .form-input {
@@ -15,18 +65,43 @@
 
 /* ── Buttons ── */
 .btn-primary {
-  @apply inline-flex items-center gap-1 bg-[#1a4f7a] text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer hover:bg-[#2563a8] transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  @apply inline-flex items-center gap-1 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  background: var(--cis-primary);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--cis-primary-light);
 }
 .btn-outline {
-  @apply inline-flex items-center gap-1 bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm cursor-pointer hover:border-[#1a4f7a] hover:text-[#1a4f7a] transition-colors;
+  @apply inline-flex items-center gap-1 bg-white border border-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm cursor-pointer transition-colors;
+}
+.btn-outline:hover {
+  border-color: var(--cis-primary);
+  color: var(--cis-primary);
 }
 .btn-danger {
   @apply inline-flex items-center gap-1 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer hover:bg-red-700 transition-colors;
 }
 
 /* ── Card ── */
-.card { @apply bg-white border border-gray-200 rounded-xl shadow-sm; }
-.card-header { @apply flex items-center gap-2 px-4 py-3 border-b border-gray-100 font-semibold text-sm text-[#1a4f7a]; }
+.card {
+  @apply bg-white border border-gray-200 rounded-xl;
+  box-shadow: var(--cis-shadow-sm);
+  transition: box-shadow 0.18s ease;
+}
+.card:hover {
+  box-shadow: var(--cis-shadow-md);
+}
+.card-header {
+  @apply flex items-center gap-2 px-4 py-3 border-b border-gray-100 font-semibold text-sm;
+  color: var(--cis-primary);
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+  border-top-left-radius: 0.75rem;
+  border-top-right-radius: 0.75rem;
+}
+.card-header i {
+  font-size: 1rem;
+  opacity: 0.9;
+}
 
 /* ── Tables ── */
 .result-table { @apply w-full text-sm border-collapse; }
@@ -36,7 +111,12 @@
 .result-table tr.selected td { @apply bg-blue-100; }
 
 /* ── Misc ── */
-.empty-state { @apply text-center py-12 text-gray-400 text-sm; }
+.empty-state {
+  @apply flex flex-col items-center justify-center text-center py-12 text-gray-400 text-sm gap-2;
+}
+.empty-state i {
+  @apply text-3xl text-gray-300;
+}
 .loading-spinner { @apply inline-block w-5 h-5 border-2 border-gray-200 border-t-sky-400 rounded-full animate-spin; }
 .badge-form { @apply inline-block bg-sky-100 text-sky-700 text-xs font-medium px-2 py-0.5 rounded; }
 .badge-page { @apply inline-block bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded; }

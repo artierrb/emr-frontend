@@ -31,6 +31,7 @@
       <i class="bi bi-x-circle" />
     </button>
     <button
+      v-if="searchable"
       type="button"
       class="btn-primary px-3 gap-1"
       @click="emit('open-search')"
@@ -44,10 +45,13 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   isSep: boolean
   modelValue?: string
-}>()
+  searchable?: boolean
+}>(), {
+  searchable: true,
+})
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]

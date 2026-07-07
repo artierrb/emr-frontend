@@ -1,5 +1,9 @@
 <template>
-  <div class="login-page" :style="{ backgroundImage: `url(${bgImage})` }">
+  <div
+    class="login-page"
+    :class="{ 'is-fading': fadeOut }"
+    :style="{ backgroundImage: `url(${bgImage})` }"
+  >
     <!-- ===== ซ้าย: Hero (วางทับ background ตรงๆ) ===== -->
     <div class="login-hero">
       <div class="hero-content">
@@ -25,85 +29,90 @@
     <!-- ===== ขวา: Login card ===== -->
     <div class="login-panel">
       <div class="login-card">
-        <div class="card-logo-wrap">
-          <img src="/logo.jpg" class="card-logo" alt="EMR" />
-        </div>
-        <h2 class="card-title">EMR Document System</h2>
-        <p class="card-subtitle">กรุณาเข้าสู่ระบบ</p>
+       <div class="card-stage">
+        <!-- ฟอร์ม login (fade ออกเมื่อสำเร็จ) -->
+        <transition name="content-fade">
+          <div v-if="!loginSuccess" class="card-content stage-layer">
+            <div class="card-logo-wrap">
+              <img src="/logo.jpg" class="card-logo" alt="EMR" />
+            </div>
+            <h2 class="card-title">EMR Document System</h2>
+            <p class="card-subtitle">กรุณาเข้าสู่ระบบ</p>
 
-        <div class="field">
-          <label class="field-label" for="login-user">ชื่อผู้ใช้</label>
-          <div class="input-wrap">
-            <i class="bi bi-person input-icon" />
-            <input
-              id="login-user"
-              ref="userInput"
-              v-model="userId"
-              type="text"
-              class="input-control"
-              placeholder="User ID"
-              :disabled="loading"
-              @keydown.enter="password ? doLogin() : pwdInput?.focus()"
-            />
-          </div>
-        </div>
+            <div class="field">
+              <label class="field-label" for="login-user">ชื่อผู้ใช้</label>
+              <div class="input-wrap">
+                <i class="bi bi-person input-icon" />
+                <input
+                  id="login-user"
+                  ref="userInput"
+                  v-model="userIdUpper"
+                  type="text"
+                  class="input-control input-uppercase"
+                  placeholder="User ID"
+                  :disabled="loading"
+                  autocapitalize="characters"
+                  @keydown.enter="password ? doLogin() : pwdInput?.focus()"
+                />
+              </div>
+            </div>
 
-        <div class="field">
-          <label class="field-label" for="login-pwd">รหัสผ่าน</label>
-          <div class="input-wrap">
-            <i class="bi bi-lock input-icon" />
-            <input
-              id="login-pwd"
-              ref="pwdInput"
-              v-model="password"
-              :type="showPwd ? 'text' : 'password'"
-              class="input-control has-trailing"
-              placeholder="Password"
-              :disabled="loading"
-              @keydown.enter="doLogin"
-            />
-            <button
-              type="button"
-              class="input-trailing"
-              :aria-label="showPwd ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'"
-              @click="showPwd = !showPwd"
-            >
-              <i :class="showPwd ? 'bi bi-eye-slash' : 'bi bi-eye'" />
+            <div class="field">
+              <label class="field-label" for="login-pwd">รหัสผ่าน</label>
+              <div class="input-wrap">
+                <i class="bi bi-lock input-icon" />
+                <input
+                  id="login-pwd"
+                  ref="pwdInput"
+                  v-model="password"
+                  :type="showPwd ? 'text' : 'password'"
+                  class="input-control has-trailing"
+                  placeholder="Password"
+                  :disabled="loading"
+                  @keydown.enter="doLogin"
+                />
+                <button
+                  type="button"
+                  class="input-trailing"
+                  :aria-label="showPwd ? 'ซ่อนรหัสผ่าน' : 'แสดงรหัสผ่าน'"
+                  @click="showPwd = !showPwd"
+                >
+                  <i :class="showPwd ? 'bi bi-eye-slash' : 'bi bi-eye'" />
+                </button>
+              </div>
+            </div>
+
+            <div v-if="errorMsg" class="error-box">
+              <i class="bi bi-exclamation-circle" />{{ errorMsg }}
+            </div>
+
+            <button class="btn-login" :disabled="loading" @click="doLogin">
+              <span v-if="loading" class="loading-spinner" />
+              <i v-else class="bi bi-box-arrow-in-right" />
+              เข้าสู่ระบบ
             </button>
           </div>
-        </div>
+        </transition>
 
-        <div class="row-between">
-          <label class="remember">
-            <input v-model="remember" type="checkbox" class="remember-box" :disabled="loading" />
-            <span>จดจำการเข้าสู่ระบบ</span>
-          </label>
-          <a href="#" class="link-muted" @click.prevent="onForgot">ลืมรหัสผ่าน?</a>
-        </div>
-
-        <div v-if="errorMsg" class="error-box">
-          <i class="bi bi-exclamation-circle" />{{ errorMsg }}
-        </div>
-
-        <button class="btn-login" :disabled="loading" @click="doLogin">
-          <span v-if="loading" class="loading-spinner" />
-          <i v-else class="bi bi-box-arrow-in-right" />
-          เข้าสู่ระบบ
-        </button>
-
-        <div class="divider"><span>หรือ</span></div>
-
-        <button class="btn-sso" :disabled="loading" @click="onSso">
-          <i class="bi bi-shield-check" />
-          เข้าสู่ระบบด้วย SSO
-        </button>
+        <!-- สถานะสำเร็จ (แทนที่ในกรอบเดิม) -->
+        <transition name="content-fade">
+          <div v-if="loginSuccess" class="card-success stage-layer">
+            <svg class="success-check" viewBox="0 0 52 52">
+              <circle class="success-circle" cx="26" cy="26" r="24" fill="none" />
+              <path class="success-tick" fill="none" d="M14 27 l8 8 l16 -18" />
+            </svg>
+            <div class="success-text">เข้าสู่ระบบสำเร็จ</div>
+            <div class="success-sub">กำลังเข้าสู่หน้าถัดไป...</div>
+          </div>
+        </transition>
+       </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -131,19 +140,45 @@ const errorMsg = ref('')
 const userInput = ref<HTMLInputElement>()
 const pwdInput = ref<HTMLInputElement>()
 
+// สถานะ animation หลัง login สำเร็จ
+const loginSuccess = ref(false)
+const fadeOut = ref(false)
+let successTimer: ReturnType<typeof setTimeout> | undefined
+let fadeTimer: ReturnType<typeof setTimeout> | undefined
+
+// บังคับ username เป็นตัวพิมพ์ใหญ่เสมอ (เขียนกลับค่าจริงผ่าน v-model)
+const userIdUpper = computed({
+  get: () => userId.value,
+  set: (v: string) => { userId.value = (v || '').toUpperCase() },
+})
+
 onMounted(() => userInput.value?.focus())
+
+onBeforeUnmount(() => {
+  clearTimeout(successTimer)
+  clearTimeout(fadeTimer)
+})
 
 async function doLogin() {
   if (!userId.value.trim() || !password.value) return
   loading.value = true
   errorMsg.value = ''
   try {
-    await authStore.login(userId.value.trim(), password.value)
-    if (authStore.canScan) router.push('/scan')
-    else router.push('/viewer')
+    await authStore.login(userId.value.trim().toUpperCase(), password.value)
+    const target = authStore.canScan ? '/scan' : '/viewer'
+
+    // 1) แสดง overlay สำเร็จ
+    loading.value = false
+    loginSuccess.value = true
+
+    // 2) หลัง 2 วิ สั่ง fade ทั้งหน้า
+    successTimer = setTimeout(() => {
+      fadeOut.value = true
+      // 3) หลัง fade จบ (400ms) ค่อยไปหน้าถัดไป
+      fadeTimer = setTimeout(() => router.push(target), 400)
+    }, 2000)
   } catch (e: any) {
     errorMsg.value = e.response?.data?.error || 'เกิดข้อผิดพลาด'
-  } finally {
     loading.value = false
   }
 }
@@ -170,7 +205,10 @@ function onSso() {
   /* fallback ถ้ารูปยังไม่มี / โหลดไม่ขึ้น */
   background-color: #14406b;
   background-image: linear-gradient(135deg, #14406b 0%, #1d4ed8 55%, #0f2d4a 100%);
+  transition: opacity .4s ease;
 }
+/* fade ทั้งหน้าก่อนเปลี่ยน route */
+.login-page.is-fading { opacity: 0; }
 
 /* ===== Hero (ซ้าย) ===== */
 .login-hero {
@@ -243,6 +281,7 @@ function onSso() {
 
 /* ===== Panel (ขวา) ===== */
 .login-panel {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -314,6 +353,9 @@ function onSso() {
   color: var(--text-primary, #1e293b);
   transition: border-color .15s, box-shadow .15s;
 }
+/* บังคับแสดงเป็นตัวพิมพ์ใหญ่ (ค่าจริงถูก uppercase ผ่าน computed setter อยู่แล้ว) */
+.input-uppercase { text-transform: uppercase; }
+.input-uppercase::placeholder { text-transform: none; }
 .input-control.has-trailing { padding-right: 44px; }
 .input-control:focus {
   outline: none;
@@ -435,6 +477,76 @@ function onSso() {
   animation: spin .6s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===== สถานะสำเร็จในกรอบ card ===== */
+/* stage: กำหนดกรอบให้ทั้งฟอร์มและ success ซ้อนตำแหน่งเดียวกัน
+   card จะไม่ขยับ/กระพริบตอนสลับ */
+.card-stage {
+  position: relative;
+  display: grid;
+  /* ล็อกความสูงเท่าฟอร์ม login เพื่อไม่ให้ card หดตอนเหลือแต่ success */
+  min-height: 428px;
+}
+/* ทุก layer ทับกันในช่องเดียวของ grid และยืดเต็มความสูง stage */
+.stage-layer {
+  grid-area: 1 / 1;
+}
+.card-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.success-check {
+  width: 104px;
+  height: 104px;
+  margin-bottom: 24px;
+}
+.success-circle {
+  stroke: var(--primary, #2563eb);
+  stroke-width: 2.5;
+  stroke-dasharray: 151;
+  stroke-dashoffset: 151;
+  animation: draw-circle .5s ease-out forwards;
+}
+.success-tick {
+  stroke: var(--primary, #2563eb);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 40;
+  stroke-dashoffset: 40;
+  animation: draw-tick .35s .45s ease-out forwards;
+}
+@keyframes draw-circle { to { stroke-dashoffset: 0; } }
+@keyframes draw-tick { to { stroke-dashoffset: 0; } }
+
+.success-text {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary, #1e293b);
+  opacity: 0;
+  animation: fade-up .35s .7s ease-out forwards;
+}
+.success-sub {
+  margin-top: 6px;
+  font-size: 14px;
+  color: var(--primary, #2563eb);
+  opacity: 0;
+  animation: fade-up .35s .85s ease-out forwards;
+}
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* transition สลับ ฟอร์ม <-> สำเร็จ (crossfade ซ้อนกัน) */
+.content-fade-enter-active { transition: opacity .4s ease .1s; }
+.content-fade-leave-active { transition: opacity .3s ease; }
+.content-fade-enter-from,
+.content-fade-leave-to { opacity: 0; }
 
 /* ===== Responsive: ซ่อน hero บนจอเล็ก ===== */
 @media (max-width: 900px) {

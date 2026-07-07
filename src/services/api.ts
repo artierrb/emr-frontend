@@ -14,6 +14,13 @@ export const patientApi = {
   search: (field: string, keyword: string) =>
       api.get<Patient[]>('/patient/search', { params: { field, keyword } }).then(r => r.data),
 
+  // โหลดผู้ป่วยทั้งหมดแบบแบ่งหน้า (order by PATID) — ใช้ตอนเปิด PatientSearchModal
+  // page เริ่มที่ 0
+  list: (page: number, size = 100) =>
+      api.get<{ data: Patient[]; total: number; page: number; size: number; pages: number }>(
+          '/patient/list', { params: { page, size } }
+      ).then(r => r.data),
+
   // sync HIS เฉพาะ HN เดียว (exec SP_InterfaceTREATT_PATID + SP_InterfacePATIENTT_PATID) แล้วหาคนไข้
   // ใช้ตอนพิมพ์ HN ในหน้า Scan/View — hn ต้องเป็น padded 8 หลัก (ห้าม trim ก่อนส่ง)
   syncFind: (hn: string) =>
@@ -44,6 +51,10 @@ export const configApi = {
 export const clinicApi = {
   search: (keyword: string) =>
       api.get('/clinic/search', { params: { keyword } }).then(r => r.data),
+
+  // dropdown: คลินิกทั้งหมด (ไม่ filter active) ORDER BY NAME
+  getAll: () =>
+      api.get<Clinic[]>('/clinic/all').then(r => r.data),
 }
 
 export const userApi = {
