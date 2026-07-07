@@ -328,9 +328,9 @@
       <div v-if="viewerOpen" class="fixed inset-0 z-[9000] bg-black/90 flex flex-col"
         @click.self="viewerOpen = false">
         <div class="flex items-center gap-2 px-4 py-2 bg-black/60 flex-shrink-0">
-          <button class="viewer-btn" @click="vZoom = Math.max(0.25, vZoom-0.25)"><i class="bi bi-zoom-out" /></button>
+          <button class="viewer-btn" @click="vZoom = Math.max(0.25, vZoom-0.25); if (vZoom <= 1) resetPan()"><i class="bi bi-zoom-out" /></button>
           <button class="viewer-btn" @click="vZoom = Math.min(4, vZoom+0.25)"><i class="bi bi-zoom-in" /></button>
-          <button class="viewer-btn" @click="vZoom=1;vRotate=0"><i class="bi bi-aspect-ratio" /></button>
+          <button class="viewer-btn" @click="vZoom=1;vRotate=0;resetPan()"><i class="bi bi-aspect-ratio" /></button>
           <button class="viewer-btn" @click="vRotate=(vRotate+90)%360"><i class="bi bi-arrow-clockwise" /></button>
           <button class="viewer-btn" @click="printCurrentImage" title="พิมพ์รูป"><i class="bi bi-printer" /></button>
           <span class="flex-1 text-white/70 text-sm truncate">{{ viewerLabel }}</span>
@@ -339,10 +339,17 @@
           <button class="viewer-btn" :class="viewerIdx >= viewPages.length-1 ? 'opacity-30' : ''" @click="navViewer(1)"><i class="bi bi-chevron-right" /></button>
           <button class="viewer-btn" @click="viewerOpen=false"><i class="bi bi-x-lg" /></button>
         </div>
-        <div class="flex-1 flex items-center justify-center overflow-hidden p-4">
+        <div class="flex-1 flex items-center justify-center overflow-hidden p-4"
+          @wheel="onWheelZoom">
           <img :src="viewerSrc"
-            :style="{ transform: `scale(${vZoom}) rotate(${vRotate}deg)`, transition: 'transform 0.2s' }"
-            class="max-w-full max-h-full object-contain" />
+            draggable="false"
+            :style="{
+              transform: `translate(${vPanX}px, ${vPanY}px) scale(${vZoom}) rotate(${vRotate}deg)`,
+              transition: panning ? 'none' : 'transform 0.2s',
+              cursor: vZoom > 1 ? (panning ? 'grabbing' : 'grab') : 'default',
+            }"
+            class="max-w-full max-h-full object-contain select-none"
+            @mousedown="onPanStart" />
         </div>
       </div>
     </Transition>
@@ -431,6 +438,42 @@ const viewerOpen = ref(false)
 const viewerIdx  = ref(0)
 const vZoom      = ref(1)
 const vRotate    = ref(0)
+// pan offset (เลื่อนตำแหน่งรูปด้วยเมาส์เมื่อ zoom in)
+const vPanX      = ref(0)
+const vPanY      = ref(0)
+const panning    = ref(false)
+let panStartX = 0, panStartY = 0, panOriginX = 0, panOriginY = 0
+
+function resetPan() { vPanX.value = 0; vPanY.value = 0 }
+
+function onPanStart(e: MouseEvent) {
+  if (vZoom.value <= 1) return       // ไม่ได้ zoom → ไม่ต้องลาก
+  e.preventDefault()
+  panning.value = true
+  panStartX = e.clientX; panStartY = e.clientY
+  panOriginX = vPanX.value; panOriginY = vPanY.value
+  window.addEventListener('mousemove', onPanMove)
+  window.addEventListener('mouseup', onPanEnd)
+}
+function onPanMove(e: MouseEvent) {
+  if (!panning.value) return
+  vPanX.value = panOriginX + (e.clientX - panStartX)
+  vPanY.value = panOriginY + (e.clientY - panStartY)
+}
+function onPanEnd() {
+  panning.value = false
+  window.removeEventListener('mousemove', onPanMove)
+  window.removeEventListener('mouseup', onPanEnd)
+}
+
+// zoom ด้วย scroll wheel (Ctrl+wheel หรือ wheel ปกติ)
+function onWheelZoom(e: WheelEvent) {
+  e.preventDefault()
+  const delta = e.deltaY < 0 ? 0.25 : -0.25
+  const next = Math.min(4, Math.max(0.25, vZoom.value + delta))
+  vZoom.value = next
+  if (next <= 1) resetPan()          // กลับมาขนาดปกติ → รีเซ็ตตำแหน่ง
+}
 
 // Watermark config (โหลดตอน mount)
 const wmEnabled = ref(false)
@@ -714,10 +757,10 @@ async function selectTreat(formCode: string, t: any) {
   finally { loadingPages.value = false }
 }
 
-function openViewer(idx: number) { viewerIdx.value = idx; vZoom.value = 1; vRotate.value = 0; viewerOpen.value = true }
+function openViewer(idx: number) { viewerIdx.value = idx; vZoom.value = 1; vRotate.value = 0; resetPan(); viewerOpen.value = true }
 function navViewer(dir: number) {
   const next = viewerIdx.value + dir
-  if (next >= 0 && next < viewPages.value.length) { viewerIdx.value = next; vZoom.value = 1; vRotate.value = 0 }
+  if (next >= 0 && next < viewPages.value.length) { viewerIdx.value = next; vZoom.value = 1; vRotate.value = 0; resetPan() }
 }
 
 // กดปุ่ม print: เช็ค auth ก่อน
